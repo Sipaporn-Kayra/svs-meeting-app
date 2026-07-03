@@ -27,7 +27,6 @@ except Exception as e:
     st.stop()
 
 # 3. ดึงข้อมูลเมนูแบบไดนามิกจากแท็บ Settings มาใช้งาน
-# 🎓 Mentor Note: ดึงข้อมูลดิบทั้งหมดแล้วกรองช่องว่างออก เพื่อรองรับเมนูที่มีจำนวนไม่เท่ากัน
 settings_data = sheet_settings.get_all_values()
 if len(settings_data) > 1:
     df_settings = pd.DataFrame(settings_data[1:], columns=settings_data[0])
@@ -54,7 +53,6 @@ with tab1:
         is_attending = st.radio("สถานะการเข้าร่วม", ["เข้าร่วม", "ไม่เข้าร่วม"])
         
         st.subheader("2. สวัสดิการ (ข้อมูลอัปเดตแบบไดนามิกแล้ว)")
-        # 📌 จุดเปลี่ยนสำคัญ: ดึงตัวแปรลิสต์มาจาก Google Sheets แล้ว
         lunch = st.selectbox("เมนูอาหารกลางวัน", lunch_options)
         drink = st.selectbox("เครื่องดื่ม", drink_options)
         sport = st.selectbox("กิจกรรมกีฬาช่วงเย็น", sport_options)
@@ -79,12 +77,11 @@ with tab1:
                 st.balloons()
 
 # ==========================================
-# แท็บที่ 2: แดชบอร์ดแอดมิน + ประตูความปลอดภัย (Admin Authorization Gate)
+# แท็บที่ 2: แดชบอร์ดแอดมิน + ประตูความปลอดภัย
 # ==========================================
 with tab2:
     st.header("📊 หน้าควบคุมและสรุปผลสำหรับแอดมิน")
     
-    # 🔐 สร้างกล่องกรอกรหัสผ่านความปลอดภัย
     password_input = st.text_input("กรุณากรอกรหัสผ่าน Admin เพื่อเข้าสู่ระบบหลังบ้าน:", type="password")
     
     if password_input != st.secrets["admin_password"]:
@@ -95,7 +92,7 @@ with tab2:
         st.success("🔓 ยินดีต้อนรับ Admin เข้าสู่ระบบสำเร็จ!")
         st.divider()
         
-        # ⚙️ เมนูตั้งค่าการประชุมรอบใหม่ (พิมพ์แก้ไขเมนูได้ทันที)
+        # ⚙️ เมนูตั้งค่าการประชุมรอบใหม่
         st.subheader("⚙️ เมนูตั้งค่าสวัสดิการประจำรอบการประชุม (พิมพ์คั่นด้วยเครื่องหมายจุลภาค ,)")
         config_col1, config_col2, config_col3 = st.columns(3)
         
@@ -107,18 +104,15 @@ with tab2:
             new_sport_str = st.text_area("รายการกิจกรรมกีฬา", value=",".join(sport_options))
             
         if st.button("💾 Save & Publish เปิดฟอร์มรอบใหม่"):
-            # แปลงข้อความกลับเป็นลิสต์และลบช่องว่างออก
             list_lunch = [x.strip() for x in new_lunch_str.split(",") if x.strip() != ""]
             list_drink = [x.strip() for x in new_drink_str.split(",") if x.strip() != ""]
             list_sport = [x.strip() for x in new_sport_str.split(",") if x.strip() != ""]
             
-            # หาความยาวสูงสุดเพื่อนำมาสร้างตารางบันทึกกลับลงตาราง
             max_len = max(len(list_lunch), len(list_drink), len(list_sport))
             list_lunch += [""] * (max_len - len(list_lunch))
             list_drink += [""] * (max_len - len(list_drink))
             list_sport += [""] * (max_len - len(list_sport))
             
-            # เคลียร์ข้อมูลเก่าใน Sheets Settings ทิ้งแล้วเขียนทับ
             sheet_settings.clear()
             sheet_settings.append_row(["Lunch", "Drink", "Sport"])
             for i in range(max_len):
@@ -126,12 +120,12 @@ with tab2:
                 
             st.success("🎉 อัปเดตรายการสวัสดิการสำเร็จ! หน้าฟอร์ม User เปลี่ยนแปลงทันที")
             st.toast("ข้อมูลถูกบันทึกลง Google Sheets เรียบร้อยแล้ว")
-            st.rerun() # สั่งรีเฟรชหน้าจอเพื่อดึงค่าใหม่มาแสดงผล
+            st.rerun()
             
         st.divider()
         
-        # --- ส่วนแสดงผลแดชบอร์ด (โค้ดดึงข้อมูลเดิมของคุณ) ---
-        data = sheet_user.get_all_records()
+        # --- ส่วนแสดงผลแดชบอร์ด (แก้ Bug ชื่อตัวแปรเรียบร้อยแล้ว!) ---
+        data = sheet_user.get_all_records() # <--- เปลี่ยนเป็น sheet_user ตรงนี้ครับ
         if not data:
             st.info("ยังไม่มีข้อมูลผู้ลงทะเบียนในระบบในขณะนี้")
         else:
@@ -161,84 +155,3 @@ with tab2:
                 st.divider()
                 st.subheader("📋 ตารางรายชื่อและข้อมูลดิบทั้งหมด (Raw Data)")
                 st.dataframe(df, use_container_width=True)
-        
-        if submitted:
-            if name == "":
-                st.error("กรุณากรอกชื่อ-นามสกุลด้วยครับ!")
-            else:
-                timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                if is_attending == "ไม่เข้าร่วม":
-                    lunch, drink, sport, topic, time_needed = "-", "-", "-", "-", 0
-                
-                row_data = [timestamp, name, is_attending, lunch, drink, sport, topic, time_needed]
-                sheet.append_row(row_data)
-                st.success(f"บันทึกข้อมูลของ {name} เรียบร้อย! ข้อมูลในแดชบอร์ดจะอัปเดตอัตโนมัติ")
-                st.balloons()
-
-# ==========================================
-# แท็บที่ 2: แดชบอร์ดแอดมิน (ฟีเจอร์ใหม่!)
-# ==========================================
-with tab2:
-    st.header("📊 หน้าสรุปผลสำหรับผู้บริหารและแอดมิน")
-    
-    # ดึงข้อมูล Real-time ทั้งหมดจาก Google Sheets
-    data = sheet.get_all_records()
-    
-    if not data:
-        st.info("ยังไม่มีข้อมูลผู้ลงทะเบียนในระบบในขณะนี้")
-    else:
-        # แปลงข้อมูลดิบให้กลายเป็นตารางอัจฉริยะ (DataFrame)
-        df = pd.DataFrame(data)
-        
-        # 📊 ส่วนที่ 2.1: การ์ดตัวเลขสรุป (Metrics)
-        total_responses = len(df)
-        attending_count = len(df[df['Attendance'] == 'เข้าร่วม'])
-        not_attending_count = len(df[df['Attendance'] == 'ไม่เข้าร่วม'])
-        
-        metrics_col1, metrics_col2, metrics_col3 = st.columns(3)
-        metrics_col1.metric("จำนวนผู้ตอบฟอร์มทั้งหมด", f"{total_responses} คน")
-        metrics_col2.metric("ยอดผู้ยืนยันเข้าประชุม", f"{attending_count} คน", delta="Active", delta_color="normal")
-        metrics_col3.metric("ยอดผู้ไม่เข้าร่วม", f"{not_attending_count} คน", delta="-", delta_color="inverse")
-        
-        st.divider()
-        
-        # กรองข้อมูลเฉพาะคนที่เลือก "เข้าร่วม" เพื่อเอามาคำนวณสวัสดิการครัวและกิจกรรม
-        df_attending = df[df['Attendance'] == 'เข้าร่วม']
-        
-        if df_attending.empty:
-            st.warning("⚠️ ยังไม่มีข้อมูลการจัดสรรสวัสดิการ เนื่องจากยังไม่มีใครกด 'เข้าร่วม' ประชุม")
-        else:
-            # 📈 ส่วนที่ 2.2: กราฟแท่งสรุปเสบียงอาหารและเครื่องดื่ม
-            st.subheader("🍔 ยอดสรุปการสั่งอาหารและเครื่องดื่ม (ส่งให้ร้านค้าได้ทันที)")
-            chart_col1, chart_col2 = st.columns(2)
-            
-            with chart_col1:
-                st.write("**📊 ยอดรวมเมนูอาหารกลางวัน**")
-                lunch_summary = df_attending['Lunch'].value_counts()
-                st.bar_chart(lunch_summary, color="#FF4B4B") # สีแดงสดสไตล์ Streamlit
-                
-            with chart_col2:
-                st.write("**📊 ยอดรวมเมนูเครื่องดื่ม**")
-                drink_summary = df_attending['Drink'].value_counts()
-                st.bar_chart(drink_summary, color="#00C0F2") # สีฟ้าสดใส
-                
-            st.divider()
-            
-            # 📅 ส่วนที่ 2.3: สรุปวาระการประชุมและเวลาที่ต้องใช้
-            st.subheader("📅 รายการวาระประชุมที่ถูกเสนอ")
-            # กรองแถวที่พิมพ์วาระเข้ามาจริงๆ (ไม่ว่างและไม่ใช่ขีด)
-            df_topics = df_attending[(df_attending['Topic'] != "") & (df_attending['Topic'] != "-")]
-            
-            if df_topics.empty:
-                st.info("รอบนี้ยังไม่มีผู้เสนอวาระเพิ่มเติมเข้ามา สามารถกระชับเวลาประชุมได้ครับ")
-            else:
-                total_minutes = df_topics['Time'].sum()
-                st.warning(f"⏱️ **เวลาโดยประมาณที่ต้องใช้สำหรับวาระเสนอร่วม:** {total_minutes} นาที")
-                # แสดงผลตารางเฉพาะคอลัมน์ที่แอดมินอยากเห็น
-                st.dataframe(df_topics[['Name', 'Topic', 'Time']], use_container_width=True)
-                
-            st.divider()
-            
-        # 📋 ส่วนที่ 2.4: ตารางแสดงข้อมูลดิบทั้งหมด
-        st.subheader("📋 ตารางรายชื่อและข้อมูลดิบทั้งหมด (Raw Data)")
-        st.dataframe(df, use_container_width=True)
