@@ -124,12 +124,12 @@ with tab2:
                 image = Image.open(img_file)
                 st.image(image, caption="ภาพเมนูที่อัปโหลด", use_column_width=True)
                 
-        with ai_col:
+       with ai_col:
             st.info("💡 ข้อแนะนำ: เมื่อ AI อ่านเสร็จ ข้อความจะถูกนำไปวางในกล่องตั้งค่าด้านล่างอัตโนมัติ ให้คุณตรวจสอบความถูกต้องก่อนกดเปิดฟอร์ม")
             if img_file is not None and st.button("✨ ให้ AI สกัดรายชื่อเมนู", use_container_width=True):
                 with st.spinner("AI กำลังวิเคราะห์รูปภาพ..."):
                     try:
-                        # Prompt Engineering: สั่งให้ AI อ่านเมนูและคืนค่าเฉพาะชื่อเมนูคั่นด้วยจุลภาค
+                        # Prompt Engineering
                         ai_prompt = """
                         คุณคือผู้ช่วยแอดมิน กรุณาอ่านรูปภาพเมนูนี้และดึงเฉพาะ 'ชื่อเมนู' ออกมา 
                         ไม่ต้องเอา ราคา หรือ คำอธิบายเพิ่มเติม 
@@ -142,14 +142,23 @@ with tab2:
                         st.success("สกัดข้อความสำเร็จ!")
                         st.write("ผลลัพธ์จาก AI:", result_text)
                         
-                     # 📌 โค้ดใหม่: ระบบสะสมข้อมูล (Accumulator)
-if menu_type == "อาหารกลางวัน":
-    # ถ้ากล่องเดิมว่างเปล่า ให้ใส่ค่าใหม่ลงไปเลย
-    if st.session_state.draft_lunch.strip() == "":
-        st.session_state.draft_lunch = result_text
-    # แต่ถ้ามีของเก่าอยู่แล้ว ให้ใส่ลูกน้ำคั่นแล้วตามด้วยของใหม่
-    else:
-        st.session_state.draft_lunch += f", {result_text}"
+                        # 📌 ระบบสะสมข้อมูล (Accumulator Pattern)
+                        if menu_type == "อาหารกลางวัน":
+                            if st.session_state.draft_lunch.strip() == "":
+                                st.session_state.draft_lunch = result_text
+                            else:
+                                st.session_state.draft_lunch += f", {result_text}"
+                        else:
+                            if st.session_state.draft_drink.strip() == "":
+                                st.session_state.draft_drink = result_text
+                            else:
+                                st.session_state.draft_drink += f", {result_text}"
+                                
+                        st.rerun() 
+                        
+                    # 🚨 บรรทัดนี้แหละครับที่หายไป! (Error Handling)
+                    except Exception as e:
+                        st.error(f"เกิดข้อผิดพลาดจาก AI: {e}")
         
 else: # กรณีเป็นหมวดเครื่องดื่ม
     if st.session_state.draft_drink.strip() == "":
