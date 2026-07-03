@@ -20,7 +20,7 @@ def init_connections():
     
     # โหลด Gemini AI API
     genai.configure(api_key=st.secrets["gemini_api_key"])
-    model = genai.GenerativeModel('gemini-1.5-flash')
+    model = genai.GenerativeModel('gemini-1.5-flash-latest')
     
     return gc, model
 
@@ -117,7 +117,7 @@ with tab2:
         upload_col, ai_col = st.columns([1, 1])
         
         with upload_col:
-            img_file = st.file_uploader("อัปโหลดไฟล์รูปเมนูร้านค้า (JPG, PNG)", type=["jpg", "png", "jpeg"])
+            img_file = st.file_uploader("อัปโหลดไฟล์รูปเมนูร้านค้า (JPG, PNG, WEBP)", type=["jpg", "png", "jpeg", "webp"])
             menu_type = st.radio("รูปภาพนี้คือเมนูหมวดไหน?", ["อาหารกลางวัน", "เครื่องดื่ม"])
             
             if img_file is not None:
