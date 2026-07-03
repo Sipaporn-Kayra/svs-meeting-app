@@ -4,7 +4,7 @@ import gspread
 import pandas as pd
 from datetime import datetime
 
-# 1. ตั้งค่าหัวเว็บ
+# 1. ตั้งค่าหัวเว็บและปรับหน้าจอแบบกว้าง (Wide Layout)
 st.set_page_config(page_title="SVS Meeting Portal", page_icon="🩺", layout="wide")
 
 st.title("🩺 ระบบจัดการประชุมและสวัสดิการ SVS")
@@ -18,10 +18,9 @@ def init_connection():
 
 try:
     gc = init_connection()
-    # เปิดไฟล์ฐานข้อมูลหลัก
     db = gc.open("SVS_Database")
-    sheet_user = db.sheet1 # แท็บแรกสำหรับเก็บข้อมูลผู้ลงทะเบียน
-    sheet_settings = db.worksheet("Settings") # แท็บสองสำหรับเก็บเมนูตั้งค่า
+    sheet_user = db.sheet1 # แท็บเก็บข้อมูลผู้ลงทะเบียน
+    sheet_settings = db.worksheet("Settings") # แท็บเก็บเมนูตั้งค่า
 except Exception as e:
     st.error(f"เกิดข้อผิดพลาดในการเชื่อมต่อฐานข้อมูล: {e}")
     st.stop()
@@ -34,7 +33,6 @@ if len(settings_data) > 1:
     drink_options = [x for x in df_settings['Drink'].tolist() if x != ""]
     sport_options = [x for x in df_settings['Sport'].tolist() if x != ""]
 else:
-    # ค่า Fallback เผื่อตารางใน Sheets ว่างเปล่าระบบจะได้ไม่พัง
     lunch_options = ["กะเพราไก่ไข่ดาว"]
     drink_options = ["กาแฟเย็น"]
     sport_options = ["ไม่เข้าร่วม"]
@@ -52,9 +50,23 @@ with tab1:
         name = st.text_input("ชื่อ-นามสกุล")
         is_attending = st.radio("สถานะการเข้าร่วม", ["เข้าร่วม", "ไม่เข้าร่วม"])
         
-        st.subheader("2. สวัสดิการ (ข้อมูลอัปเดตแบบไดนามิกแล้ว)")
-        lunch = st.selectbox("เมนูอาหารกลางวัน", lunch_options)
-        drink = st.selectbox("เครื่องดื่ม", drink_options)
+        st.subheader("2. สวัสดิการ (อัปเดตเมนูแบบไดนามิก)")
+        # 👍 รายการอาหาร: เปลี่ยนเป็น Multiselect เลือกได้มากกว่า 1 อย่าง
+        lunch = st.multiselect("เมนูอาหารกลางวัน (เลือกได้มากกว่า 1 อย่าง)", lunch_options)
+        
+        st.markdown("---")
+        st.write("**รายละเอียดเครื่องดื่ม (ระบบป้องกันข้อมูลซ้ำซ้อน)**")
+        drink_col1, drink_col2 = st.columns(2)
+        
+        with drink_col1:
+            drink_base = st.selectbox("1. เมนูหลัก", drink_options)
+            drink_roast = st.selectbox("3. เมล็ดกาแฟ (สำหรับเมนูกาแฟ)", ["ไม่ระบุ", "คั่วอ่อน", "คั่วกลาง", "คั่วเข้ม"])
+            
+        with drink_col2:
+            drink_temp = st.selectbox("2. รูปแบบ", ["เย็น", "ร้อน", "ปั่น"])
+            drink_sweet = st.selectbox("4. ระดับความหวาน", ["หวานปกติ (100%)", "หวานน้อย (50%)", "ไม่หวาน (0%)", "หวานมาก (120%)"])
+        
+        st.markdown("---")
         sport = st.selectbox("กิจกรรมกีฬาช่วงเย็น", sport_options)
         
         st.subheader("3. วาระการประชุม (ถ้ามี)")
@@ -68,16 +80,25 @@ with tab1:
                 st.error("กรุณากรอกชื่อ-นามสกุลด้วยครับ!")
             else:
                 timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                if is_attending == "ไม่เข้าร่วม":
-                    lunch, drink, sport, topic, time_needed = "-", "-", "-", "-", 0
                 
-                row_data = [timestamp, name, is_attending, lunch, drink, sport, topic, time_needed]
+                if is_attending == "ไม่เข้าร่วม":
+                    lunch_str, final_drink_str, sport, topic, time_needed = "-", "-", "-", "-", 0
+                else:
+                    # ประกอบร่างข้อมูลอาหารให้เป็นข้อความคั่นด้วยจุลภาคลงตาราง
+                    lunch_str = ", ".join(lunch) if len(lunch) > 0 else "ไม่ได้ระบุ"
+                    
+                    # ประกอบร่างข้อมูลเครื่องดื่ม 4 หมวดให้เป็นข้อความมาตรฐานเดียวกัน
+                    roast_str = f", {drink_roast}" if drink_roast != "ไม่ระบุ" else ""
+                    final_drink_str = f"{drink_base} ({drink_temp}{roast_str}, {drink_sweet})"
+                
+                row_data = [timestamp, name, is_attending, lunch_str, final_drink_str, sport, topic, time_needed]
                 sheet_user.append_row(row_data)
+                
                 st.success(f"บันทึกข้อมูลของ {name} เรียบร้อย!")
                 st.balloons()
 
 # ==========================================
-# แท็บที่ 2: แดชบอร์ดแอดมิน + ประตูความปลอดภัย
+# แท็บที่ 2: แดชบอร์ดแอดมิน + แก้ไขระเบิดกราฟอาหารเรียบร้อย
 # ==========================================
 with tab2:
     st.header("📊 หน้าควบคุมและสรุปผลสำหรับแอดมิน")
@@ -92,7 +113,7 @@ with tab2:
         st.success("🔓 ยินดีต้อนรับ Admin เข้าสู่ระบบสำเร็จ!")
         st.divider()
         
-        # ⚙️ เมนูตั้งค่าการประชุมรอบใหม่
+        # เมนูตั้งค่าการประชุมรอบใหม่
         st.subheader("⚙️ เมนูตั้งค่าสวัสดิการประจำรอบการประชุม (พิมพ์คั่นด้วยเครื่องหมายจุลภาค ,)")
         config_col1, config_col2, config_col3 = st.columns(3)
         
@@ -118,14 +139,13 @@ with tab2:
             for i in range(max_len):
                 sheet_settings.append_row([list_lunch[i], list_drink[i], list_sport[i]])
                 
-            st.success("🎉 อัปเดตรายการสวัสดิการสำเร็จ! หน้าฟอร์ม User เปลี่ยนแปลงทันที")
-            st.toast("ข้อมูลถูกบันทึกลง Google Sheets เรียบร้อยแล้ว")
+            st.success("🎉 อัปเดตรายการสวัสดิการสำเร็จ!")
             st.rerun()
             
         st.divider()
         
-        # --- ส่วนแสดงผลแดชบอร์ด (แก้ Bug ชื่อตัวแปรเรียบร้อยแล้ว!) ---
-        data = sheet_user.get_all_records() # <--- เปลี่ยนเป็น sheet_user ตรงนี้ครับ
+        # --- ส่วนแสดงผลแดชบอร์ดวิเคราะห์ข้อมูล ---
+        data = sheet_user.get_all_records()
         if not data:
             st.info("ยังไม่มีข้อมูลผู้ลงทะเบียนในระบบในขณะนี้")
         else:
@@ -145,11 +165,16 @@ with tab2:
             if not df_attending.empty:
                 st.subheader("🍔 ยอดสรุปการสั่งอาหารและเครื่องดื่ม")
                 chart_col1, chart_col2 = st.columns(2)
+                
                 with chart_col1:
-                    st.write("**📊 ยอดรวมเมนูอาหารกลางวัน**")
-                    st.bar_chart(df_attending['Lunch'].value_counts(), color="#FF4B4B")
+                    st.write("**📊 ยอดรวมเมนูอาหารกลางวัน (แยกนับเป็นจานถูกต้องแล้ว)**")
+                    # 🛠️ กลับมาใช้สูตรระเบิดข้อมูลเพื่อแยกนับจานอาหารที่เลือกพร้อมกันอย่างถูกต้อง
+                    lunch_series = df_attending['Lunch'].str.split(', ').explode()
+                    lunch_series = lunch_series[~lunch_series.isin(["ไม่ได้ระบุ", "-"])]
+                    st.bar_chart(lunch_series.value_counts(), color="#FF4B4B")
+                    
                 with chart_col2:
-                    st.write("**📊 ยอดรวมเมนูเครื่องดื่ม**")
+                    st.write("**📊 ยอดรวมเมนูเครื่องดื่ม (แสดงแบบสเปกละเอียด)**")
                     st.bar_chart(df_attending['Drink'].value_counts(), color="#00C0F2")
                     
                 st.divider()
