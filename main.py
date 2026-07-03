@@ -20,7 +20,7 @@ def init_connections():
     
     # โหลด Gemini AI API
     genai.configure(api_key=st.secrets["gemini_api_key"])
-    model = genai.GenerativeModel('gemini-1.5-flash-latest')
+    model = genai.GenerativeModel('gemini-2.5-flash')
     
     return gc, model
 
