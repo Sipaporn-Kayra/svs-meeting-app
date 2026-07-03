@@ -142,11 +142,20 @@ with tab2:
                         st.success("สกัดข้อความสำเร็จ!")
                         st.write("ผลลัพธ์จาก AI:", result_text)
                         
-                        # นำผลลัพธ์ไปเก็บไว้ในหน่วยความจำ เพื่ออัปเดตกล่องตั้งค่าอัตโนมัติ
-                        if menu_type == "อาหารกลางวัน":
-                            st.session_state.draft_lunch = result_text
-                        else:
-                            st.session_state.draft_drink = result_text
+                     # 📌 โค้ดใหม่: ระบบสะสมข้อมูล (Accumulator)
+if menu_type == "อาหารกลางวัน":
+    # ถ้ากล่องเดิมว่างเปล่า ให้ใส่ค่าใหม่ลงไปเลย
+    if st.session_state.draft_lunch.strip() == "":
+        st.session_state.draft_lunch = result_text
+    # แต่ถ้ามีของเก่าอยู่แล้ว ให้ใส่ลูกน้ำคั่นแล้วตามด้วยของใหม่
+    else:
+        st.session_state.draft_lunch += f", {result_text}"
+        
+else: # กรณีเป็นหมวดเครื่องดื่ม
+    if st.session_state.draft_drink.strip() == "":
+        st.session_state.draft_drink = result_text
+    else:
+        st.session_state.draft_drink += f", {result_text}"
                             
                         st.rerun() # รีเฟรชหน้าเพื่อย้ายข้อมูลลงกล่อง
                     except Exception as e:
@@ -167,9 +176,10 @@ with tab2:
             new_sport_str = st.text_area("รายการกิจกรรมกีฬา", value=",".join(sport_options))
             
         if st.button("💾 Save & Publish เปิดฟอร์มรอบใหม่"):
-            list_lunch = [x.strip() for x in new_lunch_str.split(",") if x.strip() != ""]
-            list_drink = [x.strip() for x in new_drink_str.split(",") if x.strip() != ""]
-            list_sport = [x.strip() for x in new_sport_str.split(",") if x.strip() != ""]
+            # 📌 Data Deduplication: ใช้ dict.fromkeys() ตัดคำซ้ำและรักษาลำดับ (Preserve Order)
+list_lunch = list(dict.fromkeys([x.strip() for x in new_lunch_str.split(",") if x.strip() != ""]))
+list_drink = list(dict.fromkeys([x.strip() for x in new_drink_str.split(",") if x.strip() != ""]))
+list_sport = list(dict.fromkeys([x.strip() for x in new_sport_str.split(",") if x.strip() != ""]))
             
             max_len = max(len(list_lunch), len(list_drink), len(list_sport))
             list_lunch += [""] * (max_len - len(list_lunch))
