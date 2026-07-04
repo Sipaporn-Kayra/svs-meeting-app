@@ -2,9 +2,10 @@ import streamlit as st
 import json
 import gspread
 import pandas as pd
-from datetime import datetime
+from datetime import datetime, timedelta
 import google.generativeai as genai
 from PIL import Image
+import io
 
 # 1. ตั้งค่าหัวเว็บ
 st.set_page_config(page_title="SVS Meeting Portal", page_icon="🩺", layout="wide")
@@ -41,11 +42,47 @@ if len(settings_data) > 1:
 else:
     lunch_options, drink_options, sport_options = [], [], []
 
-# State Management: สร้างความจำให้หน้าเว็บเพื่อพักข้อมูลที่ AI อ่านได้
+# State Management: คลังความจำชั่วคราวของระบบ
 if 'draft_lunch' not in st.session_state:
     st.session_state.draft_lunch = ",".join(lunch_options)
 if 'draft_drink' not in st.session_state:
     st.session_state.draft_drink = ",".join(drink_options)
+
+# 🕒 ฟังก์ชันอัจฉริยะ: คำนวณและปรับเวลาเริ่ม-เวลาจบของทุกแถวตามระยะเวลา (Duration)
+def recalculate_schedule_times(df):
+    df_clean = df.copy()
+    try:
+        current_time = datetime.strptime("08:00", "%H:%M")
+        for idx, row in df_clean.iterrows():
+            topic_str = str(row.get('Topic', '')).strip()
+            
+            # กฎเหล็กเชิงธุรกิจ (Business Rules Snapping): ล็อกเวลาพักเที่ยงและปิดประชุม
+            if "พักรับประทานอาหารกลางวัน" in topic_str or "พักเที่ยง" in topic_str:
+                lunch_time = datetime.strptime("12:00", "%H:%M")
+                if current_time < lunch_time:
+                    current_time = lunch_time
+            elif "สรุปงาน" in topic_str or "ปิดการประชุม" in topic_str:
+                closing_time = datetime.strptime("16:30", "%H:%M")
+                if current_time < closing_time:
+                    current_time = closing_time
+            
+            start_str = current_time.strftime("%H.%M")
+            
+            # แปลงค่าระยะเวลาความปลอดภัย ป้องกันแอดมินพิมพ์ตัวอักษรปน
+            try:
+                duration = int(float(row.get('Duration', 0)))
+            except:
+                duration = 0
+                
+            end_time = current_time + timedelta(minutes=duration)
+            end_str = end_time.strftime("%H.%M")
+            
+            # เขียนทับช่วงเวลาใหม่ที่คำนวณได้ลงในแถวนั้นๆ
+            df_clean.at[idx, 'Time'] = f"{start_str}-{end_str}"
+            current_time = end_time
+    except Exception as e:
+        pass
+    return df_clean
 
 # 4. สร้างแท็บสลับหน้าต่าง
 tab1, tab2 = st.tabs(["📝 ฟอร์มลงทะเบียน (User)", "📊 แดชบอร์ดแอดมิน (Admin)"])
@@ -100,7 +137,7 @@ with tab1:
                 st.balloons()
 
 # ==========================================
-# แท็บที่ 2: แดชบอร์ดแอดมิน + ระบบ AI Vision + AI Scheduling
+# แท็บที่ 2: แดชบอร์ดแอดมิน + ระบบ AI Vision + AI Scheduling (Reactive Engine)
 # ==========================================
 with tab2:
     st.header("📊 หน้าควบคุมและสรุปผลสำหรับแอดมิน")
@@ -180,6 +217,7 @@ with tab2:
             sheet_settings.clear()
             sheet_settings.append_row(["Lunch", "Drink", "Sport"])
             for i in range(max_len):
+                sheet_settings.open("SVS_Database")
                 sheet_settings.append_row([list_lunch[i], list_drink[i], list_sport[i]])
                 
             st.success("🎉 อัปเดตรายการสวัสดิการสำเร็จ!")
@@ -215,17 +253,15 @@ with tab2:
             st.header("🧠 AI Scheduling Engine (ร่างตารางอัตโนมัติ)")
             
             if not df_attending.empty:
-                # 📌 วิศวกรรมข้อมูล: บังคับแปลง Type และล้างช่องว่างก่อนกรอง (Data Cleaning)
                 df_attending['Topic_Clean'] = df_attending['Topic'].astype(str).str.strip()
                 df_agenda = df_attending[(df_attending['Topic_Clean'] != "") & (df_attending['Topic_Clean'] != "-") & (df_attending['Topic_Clean'].str.lower() != "nan")].copy()
                 
                 if df_agenda.empty:
                     st.info("📌 ยังไม่มีวาระการประชุมที่ถูกเสนอเข้ามาในรอบนี้ครับ")
                 else:
-                    # แปลงเวลาเป็นตัวเลขชัวร์ๆ ป้องกัน Error จากช่องว่าง
                     df_agenda['Time_Numeric'] = pd.to_numeric(df_agenda['Time'], errors='coerce').fillna(0)
                     total_requested_time = int(df_agenda['Time_Numeric'].sum())
-                    quota_time = 375 # โควตาเช้า+บ่าย
+                    quota_time = 375 
                     
                     st.write(f"⏱️ **เวลาที่ต้องการใช้ทั้งหมด:** {total_requested_time} นาที / โควตาจัดสรร: {quota_time} นาที")
                     
@@ -244,7 +280,7 @@ with tab2:
                         agenda_list_str += f"- หัวข้อ: {row['Topic_Clean']} (ผู้นำเสนอ: {row['Name']}, เวลา: {row['Time_Numeric']} นาที)\n"
                         
                     if st.button("🪄 Generate Schedule by AI (ร่างตารางประชุมอัตโนมัติ)", use_container_width=True):
-                        with st.spinner("🧠 AI กำลังคำนวณการจัดเรียงวาระ และหาจุดแทรกเวลาพักเบรก..."):
+                        with st.spinner("🧠 AI กำลังคำนวณการจัดเรียงวาระ..."):
                             try:
                                 prompt = f"""
                                 คุณคือผู้เชี่ยวชาญด้านการจัดตารางประชุม
@@ -258,14 +294,57 @@ with tab2:
                                 4. แทรก 'พักเบรก 15 นาที' จำนวน 2 ครั้ง (เช้า 1, บ่าย 1) ใกล้กึ่งกลางช่วงที่สุด
                                 5. ห้ามแทรกเบรกตัดกลางวาระใดๆ โดยเด็ดขาด
                                 
-                                แสดงผลเป็นตาราง Markdown: [เวลา, กิจกรรม/หัวข้อ, ผู้นำเสนอ, ระยะเวลา]
+                                ⚠️ ข้อกำหนดรูปแบบการตอบกลับ (Strict Output Format):
+                                ห้ามพิมพ์คำอธิบายใดๆ ทั้งสิ้น ให้ตอบกลับมาเป็นข้อมูลคั่นด้วยเครื่องหมาย Pipe (|) เท่านั้น
+                                โดยมี Header ดังนี้:
+                                Time|Topic|Presenter|Duration
+                                ตัวอย่าง:
+                                08.00-08.45|เปิดงาน/แจ้งสถานการณ์|Admin|45
+                                08.45-09.45|อัปเดตสถานการณ์ PRRS|น.สพ.สมชาย|60
                                 """
                                 response = vision_model.generate_content(prompt)
-                                st.markdown("### 📅 ร่างตารางการประชุม (Draft Schedule)")
-                                st.markdown(response.text)
+                                raw_text = response.text.strip().replace("```csv", "").replace("```text", "").replace("```", "").strip()
+                                
+                                # แปลงผลลัพธ์จาก AI เป็น DataFrame และคำนวณรอบแรกให้สะอาด
+                                df_initial = pd.read_csv(io.StringIO(raw_text), sep='|')
+                                st.session_state.ai_draft_df = recalculate_schedule_times(df_initial)
                                 st.success("🎉 AI สร้างตารางเสร็จสิ้น!")
                             except Exception as e:
                                 st.error(f"เกิดข้อผิดพลาดจาก AI: {e}")
+
+                    # 📌 แท่นควบคุมอัจฉริยะ (Reactive Data Editor)
+                    if 'ai_draft_df' in st.session_state:
+                        st.markdown("### 📝 ตรวจสอบและแก้ไขตาราง (Admin Editor)")
+                        st.info("⚡ **ฟีเจอร์อัจฉริยะเปิดใช้งานแล้ว:** เมื่อคุณแก้ช่อง 'Duration' (ระยะเวลา) ระบบจะขยับคอลัมน์ 'Time' ของแถวถัดๆ ไปให้โดยอัตโนมัติทันที!")
+                        
+                        # รันตารางจำลองแก้ไขได้สดๆ
+                        edited_df = st.data_editor(
+                            st.session_state.ai_draft_df, 
+                            num_rows="dynamic", 
+                            use_container_width=True,
+                            key="schedule_editor_reactive"
+                        )
+                        
+                        # คำนวณเวลาใหม่แบบ Real-time ตามข้อมูลที่เพิ่งพิมพ์
+                        recalculated_df = recalculate_schedule_times(edited_df)
+                        
+                        # 🔄 ท่อดักจับการเปลี่ยนแปลง: ถ้าตัวเลขเปลี่ยน ให้รีบเขียนลงความจำและสั่งรีเฟรชโชว์ผลทันที
+                        if not recalculated_df.equals(st.session_state.ai_draft_df):
+                            st.session_state.ai_draft_df = recalculated_df
+                            st.rerun()
+                            
+                        st.divider()
+                        
+                        # ปุ่มดาวน์โหลดนำไปส่งต่อ
+                        csv_export = recalculated_df.to_csv(index=False).encode('utf-8-sig')
+                        st.download_button(
+                            label="📥 Finalize & Export to Excel (CSV)",
+                            data=csv_export,
+                            file_name=f"SVS_Meeting_Schedule_{datetime.now().strftime('%Y%m%d')}.csv",
+                            mime="text/csv",
+                            type="primary",
+                            use_container_width=True
+                        )
             else:
                 st.info("📌 ยังไม่มีผู้ลงทะเบียนเข้าร่วมประชุมครับ")
     else:
