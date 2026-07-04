@@ -100,7 +100,7 @@ with tab1:
                 st.balloons()
 
 # ==========================================
-# แท็บที่ 2: แดชบอร์ดแอดมิน + ระบบ AI Vision
+# แท็บที่ 2: แดชบอร์ดแอดมิน + ระบบ AI Vision + AI Scheduling
 # ==========================================
 with tab2:
     st.header("📊 หน้าควบคุมและสรุปผลสำหรับแอดมิน")
@@ -123,7 +123,7 @@ with tab2:
                 st.image(image, caption="ภาพเมนูที่อัปโหลด", use_column_width=True)
                 
         with ai_col:
-            st.info("💡 ข้อแนะนำ: เมื่อ AI อ่านเสร็จ ข้อความจะถูกนำไปวางในกล่องตั้งค่าด้านล่างอัตโนมัติ ให้คุณตรวจสอบความถูกต้องก่อนกดเปิดฟอร์ม")
+            st.info("💡 ข้อแนะนำ: เมื่อ AI อ่านเสร็จ ข้อความจะถูกนำไปวางในกล่องตั้งค่าด้านล่างอัตโนมัติ")
             if img_file is not None and st.button("✨ ให้ AI สกัดรายชื่อเมนู", use_container_width=True):
                 with st.spinner("AI กำลังวิเคราะห์รูปภาพ..."):
                     try:
@@ -151,7 +151,6 @@ with tab2:
                                 st.session_state.draft_drink += f", {result_text}"
                                 
                         st.rerun() 
-                        
                     except Exception as e:
                         st.error(f"เกิดข้อผิดพลาดจาก AI: {e}")
         
@@ -169,7 +168,6 @@ with tab2:
             new_sport_str = st.text_area("รายการกิจกรรมกีฬา", value=",".join(sport_options))
             
         if st.button("💾 Save & Publish เปิดฟอร์มรอบใหม่"):
-            # Data Deduplication: ใช้ dict.fromkeys ตัดคำซ้ำและรักษาลำดับ
             list_lunch = list(dict.fromkeys([x.strip() for x in new_lunch_str.split(",") if x.strip() != ""]))
             list_drink = list(dict.fromkeys([x.strip() for x in new_drink_str.split(",") if x.strip() != ""]))
             list_sport = list(dict.fromkeys([x.strip() for x in new_sport_str.split(",") if x.strip() != ""]))
@@ -185,7 +183,6 @@ with tab2:
                 sheet_settings.append_row([list_lunch[i], list_drink[i], list_sport[i]])
                 
             st.success("🎉 อัปเดตรายการสวัสดิการสำเร็จ!")
-            
             st.session_state.draft_lunch = ",".join([x for x in list_lunch if x != ""])
             st.session_state.draft_drink = ",".join([x for x in list_drink if x != ""])
             st.rerun()
@@ -210,74 +207,67 @@ with tab2:
                     
             st.subheader("📋 ตารางรายชื่อและข้อมูลดิบทั้งหมด (Raw Data)")
             st.dataframe(df, use_container_width=True)
-    else:
-        if password_input != "":
-            st.error("❌ รหัสผ่านไม่ถูกต้อง!")
-    # ==========================================
+            
+            # ==========================================
             # 🧠 AI Scheduling Engine (ระบบจัดตารางประชุมอัจฉริยะ)
             # ==========================================
             st.divider()
-            st.header("🧠 AI Scheduling Engine (ระบบจัดตารางประชุมอัจฉริยะ)")
+            st.header("🧠 AI Scheduling Engine (ร่างตารางอัตโนมัติ)")
             
-            # 1. กรองเฉพาะผู้เข้าร่วมที่มีการเสนอวาระ (Topic ไม่เป็นช่องว่าง และ ไม่ใช่ "-")
-            df_agenda = df_attending[(df_attending['Topic'] != "") & (df_attending['Topic'] != "-")].copy()
-            
-            if df_agenda.empty:
-                st.info("📌 ยังไม่มีวาระการประชุมที่ถูกเสนอเข้ามาในรอบนี้ครับ")
-            else:
-                # 2. คำนวณเวลารวมที่ต้องใช้ทั้งหมด
-                total_requested_time = int(df_agenda['Time'].sum())
-                quota_time = 375 # โควตาตาม Brief C.L.E.A.R
+            if not df_attending.empty:
+                # 📌 วิศวกรรมข้อมูล: บังคับแปลง Type และล้างช่องว่างก่อนกรอง (Data Cleaning)
+                df_attending['Topic_Clean'] = df_attending['Topic'].astype(str).str.strip()
+                df_agenda = df_attending[(df_attending['Topic_Clean'] != "") & (df_attending['Topic_Clean'] != "-") & (df_attending['Topic_Clean'].str.lower() != "nan")].copy()
                 
-                st.write(f"⏱️ **เวลาที่ต้องการใช้ทั้งหมด:** {total_requested_time} นาที / โควตาจัดสรร: {quota_time} นาที")
-                
-                # 3. Business Logic: ตรวจสอบ Edge Cases
-                if total_requested_time > quota_time:
-                    st.error(f"⚠️ เวลาเกินโควตาไป {total_requested_time - quota_time} นาที (Over Time)")
-                    st.warning("**💡 ข้อเสนอแนะจากระบบ (Action Required):**\n1. ลดเวลาทุกวาระลง 10%\n2. ย้ายวาระสำคัญน้อยไปรอบหน้า\n3. ปรับเป็น Pre-read ให้ Q&A อย่างเดียว\n4. ปรับแก้ตามดุลพินิจ Admin")
-                elif total_requested_time < quota_time:
-                    st.success(f"✅ เวลาอยู่ในโควตา (เหลือเวลา {quota_time - total_requested_time} นาที)")
-                    st.info("**💡 ข้อเสนอแนะจากระบบ (Under Time):**\n1. เพิ่มเวลา Q&A ท้ายการประชุม\n2. เลื่อนเวลาเลิกและขยับเวลากีฬาให้เร็วขึ้น")
+                if df_agenda.empty:
+                    st.info("📌 ยังไม่มีวาระการประชุมที่ถูกเสนอเข้ามาในรอบนี้ครับ")
                 else:
-                    st.success("✅ เวลาพอดีโควตาเป๊ะ!")
-
-                # 4. เตรียมข้อมูล (Data Preparation) ให้ AI
-                agenda_list_str = ""
-                for index, row in df_agenda.iterrows():
-                    agenda_list_str += f"- หัวข้อ: {row['Topic']} (ผู้นำเสนอ: {row['Name']}, เวลาที่ใช้: {row['Time']} นาที)\n"
+                    # แปลงเวลาเป็นตัวเลขชัวร์ๆ ป้องกัน Error จากช่องว่าง
+                    df_agenda['Time_Numeric'] = pd.to_numeric(df_agenda['Time'], errors='coerce').fillna(0)
+                    total_requested_time = int(df_agenda['Time_Numeric'].sum())
+                    quota_time = 375 # โควตาเช้า+บ่าย
                     
-                # 5. ปุ่ม Trigger AI
-                if st.button("🪄 Generate Schedule by AI (ร่างตารางประชุมอัตโนมัติ)", use_container_width=True):
-                    with st.spinner("🧠 AI กำลังคำนวณการจัดเรียงวาระ และหาจุดแทรกเวลาพักเบรก..."):
-                        try:
-                            # Prompt Engineering ที่ระบุกฎอย่างชัดเจน (Hard & Soft Constraints)
-                            prompt = f"""
-                            คุณคือผู้เชี่ยวชาญด้านการจัดตารางประชุม (Meeting Scheduler)
-                            หน้าที่ของคุณคือ นำรายการวาระต่อไปนี้ไปจัดเรียงเป็นตารางเวลาให้สมบูรณ์
-                            
-                            รายการวาระที่ต้องจัดสรร:
-                            {agenda_list_str}
-                            
-                            กฎและข้อยกเว้นบังคับ (Rules):
-                            1. โครงสร้างหลัก: 
-                                - 08.00 - 08.45 น. : วาระคงที่ (เปิดงาน/แจ้งสถานการณ์)
-                                - 12.00 - 13.00 น. : พักรับประทานอาหารกลางวัน
-                                - 16.30 - 17.00 น. : วาระคงที่ (สรุปงาน/ปิดการประชุม)
-                            2. การพักเบรก (สำคัญมาก): ต้องแทรกเวลา 'พักเบรก 15 นาที' จำนวน 2 ครั้ง คือช่วงเช้า 1 ครั้ง และช่วงบ่าย 1 ครั้ง โดยพยายามหาจุดเชื่อมต่อวาระที่ใกล้เคียงกึ่งกลางของช่วงเช้าและบ่ายที่สุด
-                            3. กฎเหล็ก: "ห้ามแทรกพักเบรกตัดกลางเวลาของวาระใดๆ โดยเด็ดขาด" ต้องให้จบวาระนั้นๆ ก่อนถึงจะพักเบรกได้
-                            
-                            ข้อกำหนดการแสดงผล:
-                            แสดงผลเป็นตาราง Markdown ที่มีคอลัมน์: [เวลา, กิจกรรม/หัวข้อ, ผู้นำเสนอ, ระยะเวลา]
-                            ไม่ต้องเขียนคำอธิบายยืดยาว ขอแค่ตารางที่ดูเป็นมืออาชีพและนำไปใช้งานต่อได้ทันที
-                            """
-                            
-                            # ส่งคำสั่งให้ Gemini 2.5 Flash ช่วยคิด
-                            response = vision_model.generate_content(prompt)
-                            
-                            st.markdown("### 📅 ร่างตารางการประชุม (Draft Schedule)")
-                            st.markdown(response.text)
-                            
-                            st.success("🎉 AI สร้างตารางประชุมเสร็จสิ้น! คุณสามารถคัดลอกตารางนี้ไปใช้งานได้เลย")
-                            
-                        except Exception as e:
-                            st.error(f"เกิดข้อผิดพลาดในการประมวลผลของ AI: {e}")
+                    st.write(f"⏱️ **เวลาที่ต้องการใช้ทั้งหมด:** {total_requested_time} นาที / โควตาจัดสรร: {quota_time} นาที")
+                    
+                    if total_requested_time > quota_time:
+                        st.error(f"⚠️ เวลาเกินโควตาไป {total_requested_time - quota_time} นาที (Over Time)")
+                        st.warning("**💡 ข้อเสนอแนะจากระบบ (Action Required):**\n1. ลดเวลาทุกวาระลง 10%\n2. ย้ายวาระสำคัญน้อยไปรอบหน้า\n3. ปรับเป็น Pre-read ให้ Q&A อย่างเดียว")
+                    elif total_requested_time < quota_time:
+                        st.success(f"✅ เวลาอยู่ในโควตา (เหลือเวลา {quota_time - total_requested_time} นาที)")
+                        st.info("**💡 ข้อเสนอแนะจากระบบ (Under Time):**\n1. เพิ่มเวลา Q&A ท้ายการประชุม\n2. เลื่อนเวลาเลิกและขยับเวลากีฬาให้เร็วขึ้น")
+                    else:
+                        st.success("✅ เวลาพอดีโควตาเป๊ะ!")
+
+                    # เตรียมข้อมูลให้ AI
+                    agenda_list_str = ""
+                    for index, row in df_agenda.iterrows():
+                        agenda_list_str += f"- หัวข้อ: {row['Topic_Clean']} (ผู้นำเสนอ: {row['Name']}, เวลา: {row['Time_Numeric']} นาที)\n"
+                        
+                    if st.button("🪄 Generate Schedule by AI (ร่างตารางประชุมอัตโนมัติ)", use_container_width=True):
+                        with st.spinner("🧠 AI กำลังคำนวณการจัดเรียงวาระ และหาจุดแทรกเวลาพักเบรก..."):
+                            try:
+                                prompt = f"""
+                                คุณคือผู้เชี่ยวชาญด้านการจัดตารางประชุม
+                                นำรายการวาระต่อไปนี้ไปจัดเรียงเป็นตารางเวลาให้สมบูรณ์:
+                                {agenda_list_str}
+                                
+                                กฎ (Rules):
+                                1. 08.00-08.45 น.: เปิดงาน/แจ้งสถานการณ์ (คงที่)
+                                2. 12.00-13.00 น.: พักรับประทานอาหารกลางวัน (คงที่)
+                                3. 16.30-17.00 น.: สรุปงาน/ปิดการประชุม (คงที่)
+                                4. แทรก 'พักเบรก 15 นาที' จำนวน 2 ครั้ง (เช้า 1, บ่าย 1) ใกล้กึ่งกลางช่วงที่สุด
+                                5. ห้ามแทรกเบรกตัดกลางวาระใดๆ โดยเด็ดขาด
+                                
+                                แสดงผลเป็นตาราง Markdown: [เวลา, กิจกรรม/หัวข้อ, ผู้นำเสนอ, ระยะเวลา]
+                                """
+                                response = vision_model.generate_content(prompt)
+                                st.markdown("### 📅 ร่างตารางการประชุม (Draft Schedule)")
+                                st.markdown(response.text)
+                                st.success("🎉 AI สร้างตารางเสร็จสิ้น!")
+                            except Exception as e:
+                                st.error(f"เกิดข้อผิดพลาดจาก AI: {e}")
+            else:
+                st.info("📌 ยังไม่มีผู้ลงทะเบียนเข้าร่วมประชุมครับ")
+    else:
+        if password_input != "":
+            st.error("❌ รหัสผ่านไม่ถูกต้อง!")
