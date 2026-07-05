@@ -58,7 +58,7 @@ def recalculate_schedule_times(df):
         except:
             pass
             
-try:
+    try:
         # 📌 สถาปัตยกรรมใหม่: ไม่ล็อคเป้าที่ 08:00 แต่ใช้ค่าจากที่ Admin ตั้งค่ามาแทน
         current_time = base_start_dt 
         
