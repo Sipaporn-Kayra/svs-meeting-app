@@ -217,7 +217,6 @@ with tab2:
             sheet_settings.clear()
             sheet_settings.append_row(["Lunch", "Drink", "Sport"])
             for i in range(max_len):
-                sheet_settings.open("SVS_Database")
                 sheet_settings.append_row([list_lunch[i], list_drink[i], list_sport[i]])
                 
             st.success("🎉 อัปเดตรายการสวัสดิการสำเร็จ!")
