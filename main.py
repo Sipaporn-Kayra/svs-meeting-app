@@ -42,7 +42,6 @@ if len(settings_data) > 1:
 else:
     lunch_options, drink_options, sport_options = [], [], []
 
-# State Management: คลังความจำชั่วคราวของระบบ
 if 'draft_lunch' not in st.session_state:
     st.session_state.draft_lunch = ",".join(lunch_options)
 if 'draft_drink' not in st.session_state:
@@ -52,7 +51,6 @@ if 'draft_drink' not in st.session_state:
 def recalculate_schedule_times(df):
     df_clean = df.copy()
     
-    # 📌 1. ระบบเลื่อนลำดับอัตโนมัติ: ถ้าแอดมินแก้เลขคอลัมน์ Order ให้จัดเรียงตารางตามคอลัมน์นั้นทันที
     if 'Order' in df_clean.columns:
         try:
             df_clean['Order'] = pd.to_numeric(df_clean['Order'], errors='coerce').fillna(999)
@@ -65,7 +63,6 @@ def recalculate_schedule_times(df):
         for idx, row in df_clean.iterrows():
             topic_str = str(row.get('Topic', '')).strip()
             
-            # กฎเหล็กเชิงธุรกิจ (Business Rules Snapping): ล็อกเวลาพักเที่ยงและปิดประชุม
             if "พักรับประทานอาหารกลางวัน" in topic_str or "พักเที่ยง" in topic_str:
                 lunch_time = datetime.strptime("12:00", "%H:%M")
                 if current_time < lunch_time:
@@ -88,9 +85,9 @@ def recalculate_schedule_times(df):
             df_clean.at[idx, 'Time'] = f"{start_str}-{end_str}"
             current_time = end_time
             
-        # 📌 2. รีเซ็ตตัวเลขลำดับคอลัมน์ Order ให้เรียง 1, 2, 3 ใหม่ให้สวยงามหลังจากสลับที่เสร็จสิ้น
+        # 📌 FIX 1: แปลงลำดับรอบใหม่ให้เป็น Float ทันที
         if 'Order' in df_clean.columns:
-            df_clean['Order'] = range(1, len(df_clean) + 1)
+            df_clean['Order'] = [float(i) for i in range(1, len(df_clean) + 1)]
             
     except Exception as e:
         pass
@@ -149,7 +146,7 @@ with tab1:
                 st.balloons()
 
 # ==========================================
-# แท็บที่ 2: แดชบอร์ดแอดมิน + ระบบ AI Vision + AI Scheduling (Complete Engine)
+# แท็บที่ 2: แดชบอร์ดแอดมิน + ระบบ AI Vision + AI Scheduling 
 # ==========================================
 with tab2:
     st.header("📊 หน้าควบคุมและสรุปผลสำหรับแอดมิน")
@@ -159,7 +156,6 @@ with tab2:
         st.success("🔓 เข้าสู่ระบบหลังบ้านสำเร็จ")
         st.divider()
         
-        # 🤖 ส่วนที่ 1: ระบบ AI อ่านรูปภาพเมนู
         st.subheader("🤖 ระบบ AI ช่วยอ่านเมนูอาหาร/เครื่องดื่มจากรูปภาพ")
         upload_col, ai_col = st.columns([1, 1])
         
@@ -205,7 +201,6 @@ with tab2:
         
         st.divider()
         
-        # ⚙️ ส่วนที่ 2: กล่องตรวจสอบและเปิดฟอร์ม
         st.subheader("⚙️ ตรวจสอบและตั้งค่าสวัสดิการประจำรอบ (คั่นด้วยเครื่องหมาย ,)")
         config_col1, config_col2, config_col3 = st.columns(3)
         
@@ -238,7 +233,6 @@ with tab2:
             
         st.divider()
         
-        # --- กราฟและข้อมูลดิบ ---
         data = sheet_user.get_all_records()
         if data:
             df = pd.DataFrame(data)
@@ -257,9 +251,6 @@ with tab2:
             st.subheader("📋 ตารางรายชื่อและข้อมูลดิบทั้งหมด (Raw Data)")
             st.dataframe(df, use_container_width=True)
             
-            # ==========================================
-            # 🧠 AI Scheduling Engine (ระบบจัดตารางประชุมอัจฉริยะ)
-            # ==========================================
             st.divider()
             st.header("🧠 AI Scheduling Engine (ร่างตารางอัตโนมัติ)")
             
@@ -278,14 +269,11 @@ with tab2:
                     
                     if total_requested_time > quota_time:
                         st.error(f"⚠️ เวลาเกินโควตาไป {total_requested_time - quota_time} นาที (Over Time)")
-                        st.warning("**💡 ข้อเสนอแนะจากระบบ (Action Required):**\n1. ลดเวลาทุกวาระลง 10%\n2. ย้ายวาระสำคัญน้อยไปรอบหน้า\n3. ปรับเป็น Pre-read ให้ Q&A อย่างเดียว")
                     elif total_requested_time < quota_time:
                         st.success(f"✅ เวลาอยู่ในโควตา (เหลือเวลา {quota_time - total_requested_time} นาที)")
-                        st.info("**💡 ข้อเสนอแนะจากระบบ (Under Time):**\n1. เพิ่มเวลา Q&A ท้ายการประชุม\n2. เลื่อนเวลาเลิกและขยับเวลากีฬาให้เร็วขึ้น")
                     else:
                         st.success("✅ เวลาพอดีโควตาเป๊ะ!")
 
-                    # เตรียมข้อมูลให้ AI
                     agenda_list_str = ""
                     for index, row in df_agenda.iterrows():
                         agenda_list_str += f"- หัวข้อ: {row['Topic_Clean']} (ผู้นำเสนอ: {row['Name']}, เวลา: {row['Time_Numeric']} นาที)\n"
@@ -318,19 +306,18 @@ with tab2:
                                 
                                 df_initial = pd.read_csv(io.StringIO(raw_text), sep='|')
                                 
-                                # 📌 จุดเปลี่ยนสำคัญ: เพิ่มคอลัมน์ Order เข้าไปหน้าสุดเพื่อให้แอดมินแก้ไขสลับแถวได้
+                                # 📌 FIX 2: บังคับให้โครงสร้าง Column เป็นชนิด Float (ทศนิยม) ตั้งแต่เกิด
                                 if 'Order' not in df_initial.columns:
-                                    df_initial.insert(0, 'Order', range(1, len(df_initial) + 1))
+                                    df_initial.insert(0, 'Order', [float(i) for i in range(1, len(df_initial) + 1)])
                                     
                                 st.session_state.ai_draft_df = recalculate_schedule_times(df_initial)
                                 st.success("🎉 AI สร้างตารางเสร็จสิ้น!")
                             except Exception as e:
                                 st.error(f"เกิดข้อผิดพลาดจาก AI: {e}")
 
-                    # 📌 แท่นควบคุมอัจฉริยะ (Interactive & Reactive Data Editor)
                     if 'ai_draft_df' in st.session_state:
                         st.markdown("### 📝 ตรวจสอบและแก้ไขตาราง (Admin Editor)")
-                        st.info("⚡ **ฟีเจอร์ระดับโปรเปิดใช้งานแล้ว:** \n* **การเพิ่มวาระ:** กดปุ่ม `+` ใต้ตาราง \n* **การลบวาระ:** คลิกเลือกแถวด้านซ้ายแล้วกดปุ่ม `Delete` บนคีย์บอร์ด \n* **การเลื่อนลำดับ:** ดับเบิ้ลคลิกเปลี่ยนตัวเลขในช่อง **Order** ระบบจะจัดเรียงและบวกเวลาแถวถัดไปให้ใหม่ออโต้ทันที!")
+                        st.info("⚡ **ฟีเจอร์ระดับโปรเปิดใช้งานแล้ว:** \n* **การเพิ่มวาระ:** กดปุ่ม `+` ใต้ตาราง \n* **การลบวาระ:** คลิกเลือกแถวด้านซ้ายแล้วกดปุ่ม `Delete` บนคีย์บอร์ด \n* **การเลื่อนลำดับ:** ดับเบิ้ลคลิกเปลี่ยนตัวเลขในช่อง **Order** (รองรับทศนิยม เช่น 2.5) ระบบจะจัดเรียงและบวกเวลาแถวถัดไปให้ใหม่ออโต้ทันที!")
                         
                         edited_df = st.data_editor(
                             st.session_state.ai_draft_df, 
@@ -339,7 +326,6 @@ with tab2:
                             key="schedule_editor_reactive"
                         )
                         
-                        # คำนวณเวลาใหม่แบบ Real-time ตามลำดับและระยะเวลาที่แอดมินแก้ไข
                         recalculated_df = recalculate_schedule_times(edited_df)
                         
                         if not recalculated_df.equals(st.session_state.ai_draft_df):
