@@ -48,9 +48,18 @@ if 'draft_lunch' not in st.session_state:
 if 'draft_drink' not in st.session_state:
     st.session_state.draft_drink = ",".join(drink_options)
 
-# 🕒 ฟังก์ชันอัจฉริยะ: คำนวณและปรับเวลาเริ่ม-เวลาจบของทุกแถวตามระยะเวลา (Duration)
+# 🕒 ฟังก์ชันอัจฉริยะ: จัดเรียงลำดับใหม่ และคำนวณเวลาเริ่ม-เวลาจบของทุกแถวอัตโนมัติ
 def recalculate_schedule_times(df):
     df_clean = df.copy()
+    
+    # 📌 1. ระบบเลื่อนลำดับอัตโนมัติ: ถ้าแอดมินแก้เลขคอลัมน์ Order ให้จัดเรียงตารางตามคอลัมน์นั้นทันที
+    if 'Order' in df_clean.columns:
+        try:
+            df_clean['Order'] = pd.to_numeric(df_clean['Order'], errors='coerce').fillna(999)
+            df_clean = df_clean.sort_values(by='Order').reset_index(drop=True)
+        except:
+            pass
+            
     try:
         current_time = datetime.strptime("08:00", "%H:%M")
         for idx, row in df_clean.iterrows():
@@ -68,7 +77,6 @@ def recalculate_schedule_times(df):
             
             start_str = current_time.strftime("%H.%M")
             
-            # แปลงค่าระยะเวลาความปลอดภัย ป้องกันแอดมินพิมพ์ตัวอักษรปน
             try:
                 duration = int(float(row.get('Duration', 0)))
             except:
@@ -77,9 +85,13 @@ def recalculate_schedule_times(df):
             end_time = current_time + timedelta(minutes=duration)
             end_str = end_time.strftime("%H.%M")
             
-            # เขียนทับช่วงเวลาใหม่ที่คำนวณได้ลงในแถวนั้นๆ
             df_clean.at[idx, 'Time'] = f"{start_str}-{end_str}"
             current_time = end_time
+            
+        # 📌 2. รีเซ็ตตัวเลขลำดับคอลัมน์ Order ให้เรียง 1, 2, 3 ใหม่ให้สวยงามหลังจากสลับที่เสร็จสิ้น
+        if 'Order' in df_clean.columns:
+            df_clean['Order'] = range(1, len(df_clean) + 1)
+            
     except Exception as e:
         pass
     return df_clean
@@ -137,7 +149,7 @@ with tab1:
                 st.balloons()
 
 # ==========================================
-# แท็บที่ 2: แดชบอร์ดแอดมิน + ระบบ AI Vision + AI Scheduling (Reactive Engine)
+# แท็บที่ 2: แดชบอร์ดแอดมิน + ระบบ AI Vision + AI Scheduling (Complete Engine)
 # ==========================================
 with tab2:
     st.header("📊 หน้าควบคุมและสรุปผลสำหรับแอดมิน")
@@ -283,7 +295,7 @@ with tab2:
                             try:
                                 prompt = f"""
                                 คุณคือผู้เชี่ยวชาญด้านการจัดตารางประชุม
-                                นำรายการวาระต่อไปนี้ไปจัดเรียงเป็นตารางเวลาให้สมบูรณ์:
+                                นำรายการวาระต่อไปนี้ไปจัดเรียงเป็นตารางเวลาให้สมบูรณ์ โดยจัดกลุ่มหัวข้อที่คล้ายกันให้อยู่ใกล้กัน:
                                 {agenda_list_str}
                                 
                                 กฎ (Rules):
@@ -304,19 +316,22 @@ with tab2:
                                 response = vision_model.generate_content(prompt)
                                 raw_text = response.text.strip().replace("```csv", "").replace("```text", "").replace("```", "").strip()
                                 
-                                # แปลงผลลัพธ์จาก AI เป็น DataFrame และคำนวณรอบแรกให้สะอาด
                                 df_initial = pd.read_csv(io.StringIO(raw_text), sep='|')
+                                
+                                # 📌 จุดเปลี่ยนสำคัญ: เพิ่มคอลัมน์ Order เข้าไปหน้าสุดเพื่อให้แอดมินแก้ไขสลับแถวได้
+                                if 'Order' not in df_initial.columns:
+                                    df_initial.insert(0, 'Order', range(1, len(df_initial) + 1))
+                                    
                                 st.session_state.ai_draft_df = recalculate_schedule_times(df_initial)
                                 st.success("🎉 AI สร้างตารางเสร็จสิ้น!")
                             except Exception as e:
                                 st.error(f"เกิดข้อผิดพลาดจาก AI: {e}")
 
-                    # 📌 แท่นควบคุมอัจฉริยะ (Reactive Data Editor)
+                    # 📌 แท่นควบคุมอัจฉริยะ (Interactive & Reactive Data Editor)
                     if 'ai_draft_df' in st.session_state:
                         st.markdown("### 📝 ตรวจสอบและแก้ไขตาราง (Admin Editor)")
-                        st.info("⚡ **ฟีเจอร์อัจฉริยะเปิดใช้งานแล้ว:** เมื่อคุณแก้ช่อง 'Duration' (ระยะเวลา) ระบบจะขยับคอลัมน์ 'Time' ของแถวถัดๆ ไปให้โดยอัตโนมัติทันที!")
+                        st.info("⚡ **ฟีเจอร์ระดับโปรเปิดใช้งานแล้ว:** \n* **การเพิ่มวาระ:** กดปุ่ม `+` ใต้ตาราง \n* **การลบวาระ:** คลิกเลือกแถวด้านซ้ายแล้วกดปุ่ม `Delete` บนคีย์บอร์ด \n* **การเลื่อนลำดับ:** ดับเบิ้ลคลิกเปลี่ยนตัวเลขในช่อง **Order** ระบบจะจัดเรียงและบวกเวลาแถวถัดไปให้ใหม่ออโต้ทันที!")
                         
-                        # รันตารางจำลองแก้ไขได้สดๆ
                         edited_df = st.data_editor(
                             st.session_state.ai_draft_df, 
                             num_rows="dynamic", 
@@ -324,17 +339,15 @@ with tab2:
                             key="schedule_editor_reactive"
                         )
                         
-                        # คำนวณเวลาใหม่แบบ Real-time ตามข้อมูลที่เพิ่งพิมพ์
+                        # คำนวณเวลาใหม่แบบ Real-time ตามลำดับและระยะเวลาที่แอดมินแก้ไข
                         recalculated_df = recalculate_schedule_times(edited_df)
                         
-                        # 🔄 ท่อดักจับการเปลี่ยนแปลง: ถ้าตัวเลขเปลี่ยน ให้รีบเขียนลงความจำและสั่งรีเฟรชโชว์ผลทันที
                         if not recalculated_df.equals(st.session_state.ai_draft_df):
                             st.session_state.ai_draft_df = recalculated_df
                             st.rerun()
                             
                         st.divider()
                         
-                        # ปุ่มดาวน์โหลดนำไปส่งต่อ
                         csv_export = recalculated_df.to_csv(index=False).encode('utf-8-sig')
                         st.download_button(
                             label="📥 Finalize & Export to Excel (CSV)",
