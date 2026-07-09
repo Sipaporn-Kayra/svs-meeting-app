@@ -7,7 +7,7 @@ import google.generativeai as genai
 from PIL import Image
 import io
 
-# 1. ตั้งค่าหัวเว็บ
+# 1. ตั้งค่าหัวเว็บและปรับหน้าจอกว้าง
 st.set_page_config(page_title="SVS Meeting Portal", page_icon="🩺", layout="wide")
 st.title("🩺 ระบบจัดการประชุมและสวัสดิการ SVS")
 
@@ -32,23 +32,30 @@ except Exception as e:
     st.error(f"เกิดข้อผิดพลาดในการเชื่อมต่อระบบ: {e}")
     st.stop()
 
-# 3. ดึงข้อมูลเมนูแบบไดนามิกจาก Settings
+# 3. ดึงข้อมูลเมนูแบบไดนามิกจาก Settings และเพิ่มระบบความหวานอัจฉริยะ
 settings_data = sheet_settings.get_all_values()
 if len(settings_data) > 1:
     df_settings = pd.DataFrame(settings_data[1:], columns=settings_data[0])
     lunch_options = [x for x in df_settings['Lunch'].tolist() if x != ""]
     drink_options = [x for x in df_settings['Drink'].tolist() if x != ""]
     sport_options = [x for x in df_settings['Sport'].tolist() if x != ""]
+    
+    # 🔗 ระบบ Backward Compatibility ป้องกันตารางพังหากคอลัมน์ Sweetness ยังไม่ถูกสร้าง
+    if 'Sweetness' in df_settings.columns:
+        sweet_options = [x for x in df_settings['Sweetness'].tolist() if x != ""]
+    else:
+        sweet_options = ["หวานปกติ (100%)", "หวานน้อย (50%)", "ไม่หวาน (0%)", "หวานมาก (120%)"]
 else:
     lunch_options, drink_options, sport_options = [], [], []
+    sweet_options = ["หวานปกติ (100%)", "หวานน้อย (50%)", "ไม่หวาน (0%)", "หวานมาก (120%)"]
 
 if 'draft_lunch' not in st.session_state:
     st.session_state.draft_lunch = ",".join(lunch_options)
 if 'draft_drink' not in st.session_state:
     st.session_state.draft_drink = ",".join(drink_options)
 
-# 🕒 ฟังก์ชันอัจฉริยะ: จัดเรียงลำดับใหม่ และคำนวณเวลาเริ่ม-เวลาจบของทุกแถวอัตโนมัติ
-def recalculate_schedule_times(df):
+# 🕒 ฟังก์ชันอัจฉริยะ: ปรับ Signature รับค่าฐานเวลามาคำนวณแบบระบุตัวแปรชัดเจน (Robust Scope)
+def recalculate_schedule_times(df, base_start_dt):
     df_clean = df.copy()
     
     if 'Order' in df_clean.columns:
@@ -59,7 +66,6 @@ def recalculate_schedule_times(df):
             pass
             
     try:
-        # 📌 สถาปัตยกรรมใหม่: ไม่ล็อคเป้าที่ 08:00 แต่ใช้ค่าจากที่ Admin ตั้งค่ามาแทน
         current_time = base_start_dt 
         
         for idx, row in df_clean.iterrows():
@@ -118,7 +124,8 @@ with tab1:
             drink_roast = st.selectbox("3. เมล็ดกาแฟ (สำหรับเมนูกาแฟ)", ["ไม่ระบุ", "คั่วอ่อน", "คั่วกลาง", "คั่วเข้ม"])
         with drink_col2:
             drink_temp = st.selectbox("2. รูปแบบ", ["เย็น", "ร้อน", "ปั่น"])
-            drink_sweet = st.selectbox("4. ระดับความหวาน", ["หวานปกติ (100%)", "หวานน้อย (50%)", "ไม่หวาน (0%)", "หวานมาก (120%)"])
+            # 👍 ดึงข้อมูลตัวเลือกความหวานมาจากสถาปัตยกรรมตัวแปรฐานข้อมูลกลาง (Settings) เรียบร้อยแล้ว
+            drink_sweet = st.selectbox("4. ระดับความหวาน", sweet_options)
         
         st.markdown("---")
         sport = st.selectbox("กิจกรรมกีฬาช่วงเย็น", sport_options)
@@ -203,37 +210,48 @@ with tab2:
         st.divider()
         
         st.subheader("⚙️ ตรวจสอบและตั้งค่าสวัสดิการประจำรอบ (คั่นด้วยเครื่องหมาย ,)")
-        config_col1, config_col2, config_col3 = st.columns(3)
         
-        with config_col1:
-            new_lunch_str = st.text_area("รายการอาหารกลางวัน", value=st.session_state.draft_lunch)
-        with config_col2:
-            new_drink_str = st.text_area("รายการเครื่องดื่ม", value=st.session_state.draft_drink)
-        with config_col3:
-            new_sport_str = st.text_area("รายการกิจกรรมกีฬา", value=",".join(sport_options))
+        # 📌 ปรับการจัดวาง Layout ใหม่เป็นรูปแบบ 2x2 เพื่อรองรับกล่องความหวานอย่างเป็นระเบียบสวยงาม
+        config_row1_col1, config_row1_col2 = st.columns(2)
+        with config_row1_col1:
+            new_lunch_str = st.text_area("รายการอาหารกลางวัน", value=st.session_state.draft_lunch, height=120)
+        with config_row1_col2:
+            new_drink_str = st.text_area("รายการเครื่องดื่ม", value=st.session_state.draft_drink, height=120)
+            
+        config_row2_col1, config_row2_col2 = st.columns(2)
+        with config_row2_col1:
+            new_sport_str = st.text_area("รายการกิจกรรมกีฬา", value=",".join(sport_options), height=120)
+        with config_row2_col2:
+            # 👍 กล่องตั้งค่าระดับความหวานสำหรับแอดมิน เปิดใช้งานแล้ว!
+            new_sweet_str = st.text_area("ระดับความหวาน", value=",".join(sweet_options), height=120)
             
         if st.button("💾 Save & Publish เปิดฟอร์มรอบใหม่"):
             list_lunch = list(dict.fromkeys([x.strip() for x in new_lunch_str.split(",") if x.strip() != ""]))
             list_drink = list(dict.fromkeys([x.strip() for x in new_drink_str.split(",") if x.strip() != ""]))
             list_sport = list(dict.fromkeys([x.strip() for x in new_sport_str.split(",") if x.strip() != ""]))
+            list_sweet = list(dict.fromkeys([x.strip() for x in new_sweet_str.split(",") if x.strip() != ""]))
             
-            max_len = max(len(list_lunch), len(list_drink), len(list_sport))
+            # คำนวณความยาวสูงสุดเพื่อทำ Data Padding โยนเข้าสเปรดชีตเป็นแนวตั้งอย่างถูกต้อง
+            max_len = max(len(list_lunch), len(list_drink), len(list_sport), len(list_sweet))
             list_lunch += [""] * (max_len - len(list_lunch))
             list_drink += [""] * (max_len - len(list_drink))
             list_sport += [""] * (max_len - len(list_sport))
+            list_sweet += [""] * (max_len - len(list_sweet))
             
             sheet_settings.clear()
-            sheet_settings.append_row(["Lunch", "Drink", "Sport"])
+            # 📌 เขียนหัวตารางคอลัมน์ที่ 4 (Sweetness) ลงใน Database
+            sheet_settings.append_row(["Lunch", "Drink", "Sport", "Sweetness"])
             for i in range(max_len):
-                sheet_settings.append_row([list_lunch[i], list_drink[i], list_sport[i]])
+                sheet_settings.append_row([list_lunch[i], list_drink[i], list_sport[i], list_sweet[i]])
                 
-            st.success("🎉 อัปเดตรายการสวัสดิการสำเร็จ!")
+            st.success("🎉 อัปเดตรายการสวัสดิการและระดับความหวานสำเร็จ!")
             st.session_state.draft_lunch = ",".join([x for x in list_lunch if x != ""])
             st.session_state.draft_drink = ",".join([x for x in list_drink if x != ""])
             st.rerun()
             
         st.divider()
         
+        # --- ดึงข้อมูลการลงทะเบียนและเปิดส่วนการวาดกราฟ/ตาราง ---
         data = sheet_user.get_all_records()
         if data:
             df = pd.DataFrame(data)
@@ -259,18 +277,14 @@ with tab2:
                 df_attending['Topic_Clean'] = df_attending['Topic'].astype(str).str.strip()
                 df_agenda = df_attending[(df_attending['Topic_Clean'] != "") & (df_attending['Topic_Clean'] != "-") & (df_attending['Topic_Clean'].str.lower() != "nan")].copy()
                 
-                # 📌 1. UI Control: เพิ่มกล่องตั้งค่าเวลาให้ Admin ปรับได้อิสระ
                 st.markdown("#### ⚙️ การตั้งค่าเวลาเริ่มต้นการประชุม (Dynamic Baseline)")
                 col_time1, col_time2 = st.columns(2)
                 with col_time1:
-                    # รับค่าเป็น object เวลา
                     input_time = st.time_input("เลือกเวลาเริ่มประชุม (เช่น 08:00 หรือ 08:30)", value=datetime.strptime("08:30", "%H:%M").time())
                 
-                # นำเวลาที่เลือกมาประกอบร่างเพื่อใช้คำนวณ
                 base_start_dt = datetime.combine(datetime.today(), input_time)
-                opening_end_dt = base_start_dt + timedelta(minutes=45) # บวกเวลาคงที่ 45 นาที
+                opening_end_dt = base_start_dt + timedelta(minutes=45) 
                 
-                # แปลงกลับเป็นข้อความเพื่อส่งให้ AI
                 start_str = base_start_dt.strftime("%H.%M")
                 opening_end_str = opening_end_dt.strftime("%H.%M")
                 
@@ -323,20 +337,17 @@ with tab2:
                                 raw_text = response.text.strip().replace("```csv", "").replace("```text", "").replace("```", "").strip()
                                 
                                 df_initial = pd.read_csv(io.StringIO(raw_text), sep='|')
-                                
-                                # 📌 FIX 2: บังคับให้โครงสร้าง Column เป็นชนิด Float (ทศนิยม) ตั้งแต่เกิด
                                 if 'Order' not in df_initial.columns:
                                     df_initial.insert(0, 'Order', [float(i) for i in range(1, len(df_initial) + 1)])
                                     
-                                st.session_state.ai_draft_df = recalculate_schedule_times(df_initial)
+                                # 📌 ส่งค่า base_start_dt วิ่งเข้าท่อคำนวณฟังก์ชันโดยตรง แก้ไขปัญหา NameError หน้างาน
+                                st.session_state.ai_draft_df = recalculate_schedule_times(df_initial, base_start_dt)
                                 st.success("🎉 AI สร้างตารางเสร็จสิ้น!")
                             except Exception as e:
                                 st.error(f"เกิดข้อผิดพลาดจาก AI: {e}")
 
                     if 'ai_draft_df' in st.session_state:
                         st.markdown("### 📝 ตรวจสอบและแก้ไขตาราง (Admin Editor)")
-                        st.info("⚡ **ฟีเจอร์ระดับโปรเปิดใช้งานแล้ว:** \n* **การเพิ่มวาระ:** กดปุ่ม `+` ใต้ตาราง \n* **การลบวาระ:** คลิกเลือกแถวด้านซ้ายแล้วกดปุ่ม `Delete` บนคีย์บอร์ด \n* **การเลื่อนลำดับ:** ดับเบิ้ลคลิกเปลี่ยนตัวเลขในช่อง **Order** (รองรับทศนิยม เช่น 2.5) ระบบจะจัดเรียงและบวกเวลาแถวถัดไปให้ใหม่ออโต้ทันที!")
-                        
                         edited_df = st.data_editor(
                             st.session_state.ai_draft_df, 
                             num_rows="dynamic", 
@@ -344,7 +355,8 @@ with tab2:
                             key="schedule_editor_reactive"
                         )
                         
-                        recalculated_df = recalculate_schedule_times(edited_df)
+                        # 📌 ส่งค่า base_start_dt วิ่งเข้าไปในกระบวนการตรวจจับความเปลี่ยนแปลงแบบเรียลไทม์ (Reactive Engine)
+                        recalculated_df = recalculate_schedule_times(edited_df, base_start_dt)
                         
                         if not recalculated_df.equals(st.session_state.ai_draft_df):
                             st.session_state.ai_draft_df = recalculated_df
