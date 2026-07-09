@@ -295,7 +295,21 @@ with tab2:
                 else:
                     df_agenda['Time_Numeric'] = pd.to_numeric(df_agenda['Time'], errors='coerce').fillna(0)
                     total_requested_time = int(df_agenda['Time_Numeric'].sum())
-                    quota_time = 345 
+                    
+                    # 📌 สถาปัตยกรรมใหม่: สมการคำนวณโควตาเวลาแบบ Dynamic
+                    # 1. แปลงเวลาเลิกประชุม (16:30 น.) เป็นนาที = (16 * 60) + 30 = 990 นาที
+                    end_time_mins = 990
+                    
+                    # 2. แปลงเวลาที่แอดมินเลือกเริ่มประชุม เป็นนาที
+                    start_time_mins = (input_time.hour * 60) + input_time.minute
+                    
+                    # 3. คำนวณโควตาสุทธิ: เวลาเลิก - เวลาเริ่ม - เวลาคงที่ 165 นาที 
+                    # (เวลาคงที่ 165 นาที = เปิดงาน 45 + พักเที่ยง 60 + เบรก 30 + ปิดงาน 30)
+                    quota_time = end_time_mins - start_time_mins - 165
+                    
+                    # หากคำนวณแล้วติดลบ (เช่น เริ่มประชุมช้าเกินไป) ให้เซ็ตเป็น 0
+                    if quota_time < 0:
+                        quota_time = 0
                     
                     st.write(f"⏱️ **เวลาที่ต้องการใช้ทั้งหมด:** {total_requested_time} นาที / โควตาจัดสรร: {quota_time} นาที")
                     
