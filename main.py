@@ -32,15 +32,24 @@ except Exception as e:
     st.error(f"เกิดข้อผิดพลาดในการเชื่อมต่อระบบ: {e}")
     st.stop()
 
-# 3. ดึงข้อมูลเมนูแบบไดนามิกจาก Settings และเพิ่มระบบความหวานอัจฉริยะ
-settings_data = sheet_settings.get_all_values()
+# 📌 สถาปัตยกรรม Caching: สร้างความจำระยะสั้นลดภาระเซิร์ฟเวอร์
+@st.cache_data(ttl=300) # จำเมนูตั้งค่าไว้ 5 นาที
+def get_cached_settings():
+    return sheet_settings.get_all_values()
+
+@st.cache_data(ttl=60) # จำรายชื่อคนลงทะเบียนไว้ 1 นาที
+def get_cached_users():
+    return sheet_user.get_all_records()
+
+# 3. ดึงข้อมูลเมนูแบบไดนามิกจาก Settings (ผ่าน Cache)
+settings_data = get_cached_settings()
+
 if len(settings_data) > 1:
     df_settings = pd.DataFrame(settings_data[1:], columns=settings_data[0])
     lunch_options = [x for x in df_settings['Lunch'].tolist() if x != ""]
     drink_options = [x for x in df_settings['Drink'].tolist() if x != ""]
     sport_options = [x for x in df_settings['Sport'].tolist() if x != ""]
     
-    # 🔗 ระบบ Backward Compatibility ป้องกันตารางพังหากคอลัมน์ Sweetness ยังไม่ถูกสร้าง
     if 'Sweetness' in df_settings.columns:
         sweet_options = [x for x in df_settings['Sweetness'].tolist() if x != ""]
     else:
@@ -54,7 +63,7 @@ if 'draft_lunch' not in st.session_state:
 if 'draft_drink' not in st.session_state:
     st.session_state.draft_drink = ",".join(drink_options)
 
-# 🕒 ฟังก์ชันอัจฉริยะ: ปรับ Signature รับค่าฐานเวลามาคำนวณแบบระบุตัวแปรชัดเจน (Robust Scope)
+# 🕒 ฟังก์ชันอัจฉริยะ: คำนวณเวลาเริ่ม-เวลาจบของทุกแถวอัตโนมัติ
 def recalculate_schedule_times(df, base_start_dt):
     df_clean = df.copy()
     
@@ -124,7 +133,6 @@ with tab1:
             drink_roast = st.selectbox("3. เมล็ดกาแฟ (สำหรับเมนูกาแฟ)", ["ไม่ระบุ", "คั่วอ่อน", "คั่วกลาง", "คั่วเข้ม"])
         with drink_col2:
             drink_temp = st.selectbox("2. รูปแบบ", ["เย็น", "ร้อน", "ปั่น"])
-            # 👍 ดึงข้อมูลตัวเลือกความหวานมาจากสถาปัตยกรรมตัวแปรฐานข้อมูลกลาง (Settings) เรียบร้อยแล้ว
             drink_sweet = st.selectbox("4. ระดับความหวาน", sweet_options)
         
         st.markdown("---")
@@ -151,6 +159,9 @@ with tab1:
                 row_data = [timestamp, name, is_attending, lunch_str, final_drink_str, sport, topic, time_needed]
                 sheet_user.append_row(row_data)
                 st.success("บันทึกข้อมูลเรียบร้อย!")
+                
+                # 📌 ล้างความจำ Cache ผู้ใช้ทันที เพื่อให้แอดมินเห็นชื่อคนใหม่เลยโดยไม่ต้องรอ
+                get_cached_users.clear()
                 st.balloons()
 
 # ==========================================
@@ -211,7 +222,6 @@ with tab2:
         
         st.subheader("⚙️ ตรวจสอบและตั้งค่าสวัสดิการประจำรอบ (คั่นด้วยเครื่องหมาย ,)")
         
-        # 📌 ปรับการจัดวาง Layout ใหม่เป็นรูปแบบ 2x2 เพื่อรองรับกล่องความหวานอย่างเป็นระเบียบสวยงาม
         config_row1_col1, config_row1_col2 = st.columns(2)
         with config_row1_col1:
             new_lunch_str = st.text_area("รายการอาหารกลางวัน", value=st.session_state.draft_lunch, height=120)
@@ -222,7 +232,6 @@ with tab2:
         with config_row2_col1:
             new_sport_str = st.text_area("รายการกิจกรรมกีฬา", value=",".join(sport_options), height=120)
         with config_row2_col2:
-            # 👍 กล่องตั้งค่าระดับความหวานสำหรับแอดมิน เปิดใช้งานแล้ว!
             new_sweet_str = st.text_area("ระดับความหวาน", value=",".join(sweet_options), height=120)
             
         if st.button("💾 Save & Publish เปิดฟอร์มรอบใหม่"):
@@ -231,7 +240,6 @@ with tab2:
             list_sport = list(dict.fromkeys([x.strip() for x in new_sport_str.split(",") if x.strip() != ""]))
             list_sweet = list(dict.fromkeys([x.strip() for x in new_sweet_str.split(",") if x.strip() != ""]))
             
-            # คำนวณความยาวสูงสุดเพื่อทำ Data Padding โยนเข้าสเปรดชีตเป็นแนวตั้งอย่างถูกต้อง
             max_len = max(len(list_lunch), len(list_drink), len(list_sport), len(list_sweet))
             list_lunch += [""] * (max_len - len(list_lunch))
             list_drink += [""] * (max_len - len(list_drink))
@@ -239,7 +247,6 @@ with tab2:
             list_sweet += [""] * (max_len - len(list_sweet))
             
             sheet_settings.clear()
-            # 📌 เขียนหัวตารางคอลัมน์ที่ 4 (Sweetness) ลงใน Database
             sheet_settings.append_row(["Lunch", "Drink", "Sport", "Sweetness"])
             for i in range(max_len):
                 sheet_settings.append_row([list_lunch[i], list_drink[i], list_sport[i], list_sweet[i]])
@@ -247,12 +254,16 @@ with tab2:
             st.success("🎉 อัปเดตรายการสวัสดิการและระดับความหวานสำเร็จ!")
             st.session_state.draft_lunch = ",".join([x for x in list_lunch if x != ""])
             st.session_state.draft_drink = ",".join([x for x in list_drink if x != ""])
+            
+            # 📌 ล้างความจำ Cache Settings ทันที เพื่อให้ฟอร์มหน้าบ้านอัปเดตเมนูใหม่
+            get_cached_settings.clear()
             st.rerun()
             
         st.divider()
         
-        # --- ดึงข้อมูลการลงทะเบียนและเปิดส่วนการวาดกราฟ/ตาราง ---
-        data = sheet_user.get_all_records()
+        # 📌 ดึงข้อมูลผู้ใช้งานจากระบบ Cache (ลดการโหลดช้า)
+        data = get_cached_users()
+        
         if data:
             df = pd.DataFrame(data)
             st.subheader("🍔 ยอดสรุปการสั่งอาหารและเครื่องดื่ม")
@@ -296,18 +307,11 @@ with tab2:
                     df_agenda['Time_Numeric'] = pd.to_numeric(df_agenda['Time'], errors='coerce').fillna(0)
                     total_requested_time = int(df_agenda['Time_Numeric'].sum())
                     
-                    # 📌 สถาปัตยกรรมใหม่: สมการคำนวณโควตาเวลาแบบ Dynamic
-                    # 1. แปลงเวลาเลิกประชุม (17:00 น.) เป็นนาที = (17 * 60) = 1020 นาที
-                    end_time_mins = 1020
-                    
-                    # 2. แปลงเวลาที่แอดมินเลือกเริ่มประชุม เป็นนาที
+                    # 📌 ระบบสมการคำนวณโควตาเวลาแบบ Dynamic
+                    end_time_mins = 1020 # แปลงเวลาเลิกประชุม (17:00 น.) เป็นนาที
                     start_time_mins = (input_time.hour * 60) + input_time.minute
-                    
-                    # 3. คำนวณโควตาสุทธิ: เวลาเลิก - เวลาเริ่ม - เวลาคงที่ 165 นาที 
-                    # (เวลาคงที่ 165 นาที = เปิดงาน 45 + พักเที่ยง 60 + เบรก 30 + ปิดงาน 30)
                     quota_time = end_time_mins - start_time_mins - 165
                     
-                    # หากคำนวณแล้วติดลบ (เช่น เริ่มประชุมช้าเกินไป) ให้เซ็ตเป็น 0
                     if quota_time < 0:
                         quota_time = 0
                     
@@ -354,7 +358,6 @@ with tab2:
                                 if 'Order' not in df_initial.columns:
                                     df_initial.insert(0, 'Order', [float(i) for i in range(1, len(df_initial) + 1)])
                                     
-                                # 📌 ส่งค่า base_start_dt วิ่งเข้าท่อคำนวณฟังก์ชันโดยตรง แก้ไขปัญหา NameError หน้างาน
                                 st.session_state.ai_draft_df = recalculate_schedule_times(df_initial, base_start_dt)
                                 st.success("🎉 AI สร้างตารางเสร็จสิ้น!")
                             except Exception as e:
@@ -369,7 +372,6 @@ with tab2:
                             key="schedule_editor_reactive"
                         )
                         
-                        # 📌 ส่งค่า base_start_dt วิ่งเข้าไปในกระบวนการตรวจจับความเปลี่ยนแปลงแบบเรียลไทม์ (Reactive Engine)
                         recalculated_df = recalculate_schedule_times(edited_df, base_start_dt)
                         
                         if not recalculated_df.equals(st.session_state.ai_draft_df):
