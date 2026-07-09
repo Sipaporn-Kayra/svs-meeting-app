@@ -297,8 +297,8 @@ with tab2:
                     total_requested_time = int(df_agenda['Time_Numeric'].sum())
                     
                     # 📌 สถาปัตยกรรมใหม่: สมการคำนวณโควตาเวลาแบบ Dynamic
-                    # 1. แปลงเวลาเลิกประชุม (16:30 น.) เป็นนาที = (16 * 60) + 30 = 990 นาที
-                    end_time_mins = 990
+                    # 1. แปลงเวลาเลิกประชุม (17:00 น.) เป็นนาที = (17 * 60) = 1020 นาที
+                    end_time_mins = 1020
                     
                     # 2. แปลงเวลาที่แอดมินเลือกเริ่มประชุม เป็นนาที
                     start_time_mins = (input_time.hour * 60) + input_time.minute
