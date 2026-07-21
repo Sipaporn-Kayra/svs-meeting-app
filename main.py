@@ -138,9 +138,16 @@ with tab1:
         st.markdown("---")
         sport = st.selectbox("กิจกรรมกีฬาช่วงเย็น", sport_options)
         
-        st.subheader("3. วาระการประชุม (ถ้ามี)")
-        topic = st.text_input("หัวข้อที่ต้องการเสนอ (เว้นว่างได้หากไม่มีวาระ)")
-        time_needed = st.number_input("เวลาที่ใช้ประเมิน (นาที)", min_value=0, max_value=60, value=0)
+        st.subheader("3. วาระการประชุม (เสนอได้หลายวาระ)")
+        st.info("💡 หากมีมากกว่า 1 วาระ ให้พิมพ์ในตารางด้านล่าง และกำหนด 'เวลา' ของแต่ละวาระแยกกันได้เลย (กดปุ่ม + ด้านล่างตารางเพื่อเพิ่มวาระ)")
+        
+        default_agenda = pd.DataFrame([{"หัวข้อการประชุม": "", "เวลาที่ใช้ (นาที)": 0}])
+        user_agendas = st.data_editor(
+            default_agenda, 
+            num_rows="dynamic", 
+            use_container_width=True,
+            hide_index=True
+        )
         
         submitted = st.form_submit_button("ส่งข้อมูลลงทะเบียน")
         
@@ -149,15 +156,35 @@ with tab1:
                 st.error("กรุณากรอกชื่อ-นามสกุลด้วยครับ!")
             else:
                 timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                
+                # กรองเอาเฉพาะแถวที่มีการพิมพ์หัวข้อจริงๆ ป้องกันการส่งแถวว่าง
+                valid_agendas = user_agendas[user_agendas["หัวข้อการประชุม"].str.strip() != ""]
+                
                 if is_attending == "ไม่เข้าร่วม":
-                    lunch_str, final_drink_str, sport, topic, time_needed = "-", "-", "-", "-", 0
-                else:
+                   sheet_user.append_row([timestamp, name, "ไม่เข้าร่วม", "-", "-", "-", "-", 0])
+                elif valid_agendas.empty:
+                    # เข้าร่วม แต่ไม่ได้ใส่วาระการประชุม
                     lunch_str = ", ".join(lunch) if len(lunch) > 0 else "ไม่ได้ระบุ"
                     roast_str = f", {drink_roast}" if drink_roast != "ไม่ระบุ" else ""
                     final_drink_str = f"{drink_base} ({drink_temp}{roast_str}, {drink_sweet})"
-                
-                row_data = [timestamp, name, is_attending, lunch_str, final_drink_str, sport, topic, time_needed]
-                sheet_user.append_row(row_data)
+                    sheet_user.append_row([timestamp, name, "เข้าร่วม", lunch_str, final_drink_str, sport, "-", 0])
+                else:
+                    # เข้าร่วม และใส่วาระ (อาจจะมี 1, 2 หรือ 5 วาระ)
+                    lunch_str = ", ".join(lunch) if len(lunch) > 0 else "ไม่ได้ระบุ"
+                    roast_str = f", {drink_roast}" if drink_roast != "ไม่ระบุ" else ""
+                    final_drink_str = f"{drink_base} ({drink_temp}{roast_str}, {drink_sweet})"
+                    
+                    # 📌 Master-Detail Flattening: วนลูปบันทึกแยกเป็นบรรทัดตามจำนวนวาระ
+                    for i, (idx, row) in enumerate(valid_agendas.iterrows()):
+                        topic_val = str(row["หัวข้อการประชุม"]).strip()
+                        time_val = int(row["เวลาที่ใช้ (นาที)"])
+                        
+                        if i == 0:
+                            # วาระแรก: บันทึกข้อมูลสวัสดิการไปตามปกติ
+                            sheet_user.append_row([timestamp, name, "เข้าร่วม", lunch_str, final_drink_str, sport, topic_val, time_val])
+                        else:
+                            # วาระที่ 2 เป็นต้นไป: ซ่อนข้อมูลสวัสดิการเป็น "-" ป้องกันกราฟแท่งแอดมินนับยอดอาหารเบิ้ล!
+                            sheet_user.append_row([timestamp, name, "เข้าร่วม", "-", "-", "-", topic_val, time_val])
                 st.success("บันทึกข้อมูลเรียบร้อย!")
                 
                 # 📌 ล้างความจำ Cache ผู้ใช้ทันที เพื่อให้แอดมินเห็นชื่อคนใหม่เลยโดยไม่ต้องรอ
