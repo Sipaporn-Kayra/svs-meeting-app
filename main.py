@@ -84,7 +84,7 @@ def recalculate_schedule_times(df, base_start_dt):
                 lunch_time = current_time.replace(hour=12, minute=0, second=0, microsecond=0)
                 if current_time < lunch_time:
                     current_time = lunch_time
-            elif "สรุปงาน" in topic_str or "ปิดการประชุม" in topic_str:
+            elif topic_str == "สรุปงาน/ปิดการประชุม" or topic_str == "ปิดการประชุม":
                 closing_time = current_time.replace(hour=16, minute=30, second=0, microsecond=0)
                 if current_time < closing_time:
                     current_time = closing_time
