@@ -356,39 +356,48 @@ with tab2:
                         agenda_list_str += f"- หัวข้อ: {row['Topic_Clean']} (ผู้นำเสนอ: {row['Name']}, เวลา: {row['Time_Numeric']} นาที)\n"
                         
                     if st.button("🪄 Generate Schedule by AI (ร่างตารางประชุมอัตโนมัติ)", use_container_width=True):
-                        with st.spinner("🧠 AI กำลังคำนวณการจัดเรียงวาระ..."):
-                            try:
-                                prompt = f"""
-                                คุณคือผู้เชี่ยวชาญด้านการจัดตารางประชุม
-                                นำรายการวาระต่อไปนี้ไปจัดเรียงเป็นตารางเวลาให้สมบูรณ์ โดยจัดกลุ่มหัวข้อที่คล้ายกันให้อยู่ใกล้กัน:
-                                {agenda_list_str}
-                                
-                                กฎ (Rules):
-                                1. {start_str}-{opening_end_str} น.: เปิดงาน/แจ้งสถานการณ์ (คงที่, ใช้เวลา 45 นาที)
-                                2. 12.00-13.00 น.: พักรับประทานอาหารกลางวัน (คงที่)
-                                3. 16.30-17.00 น.: สรุปงาน/ปิดการประชุม (คงที่)
-                                4. แทรก 'พักเบรก 15 นาที' จำนวน 2 ครั้ง (เช้า 1, บ่าย 1) ใกล้กึ่งกลางช่วงที่สุด
-                                5. ห้ามแทรกเบรกตัดกลางวาระใดๆ โดยเด็ดขาด
-                                
-                                ⚠️ ข้อกำหนดรูปแบบการตอบกลับ (Strict Output Format):
-                                ห้ามพิมพ์คำอธิบายใดๆ ทั้งสิ้น ให้ตอบกลับมาเป็นข้อมูลคั่นด้วยเครื่องหมาย Pipe (|) เท่านั้น
-                                โดยมี Header ดังนี้:
-                                Time|Topic|Presenter|Duration
-                                ตัวอย่าง:
-                                08.30-09.15|เปิดงาน/แจ้งสถานการณ์|Admin|45
-                                09.15-10.15|อัปเดตสถานการณ์ PRRS|น.สพ.สมชาย|60
-                                """
-                                response = vision_model.generate_content(prompt)
-                                raw_text = response.text.strip().replace("```csv", "").replace("```text", "").replace("```", "").strip()
-                                
-                                df_initial = pd.read_csv(io.StringIO(raw_text), sep='|')
-                                if 'Order' not in df_initial.columns:
-                                    df_initial.insert(0, 'Order', [float(i) for i in range(1, len(df_initial) + 1)])
+                            with st.spinner("🧠 AI กำลังคำนวณการจัดเรียงวาระ..."):
+                                try:
+                                    prompt = f"""
+                                    คุณคือผู้เชี่ยวชาญด้านการจัดตารางประชุม
+                                    นำรายการวาระต่อไปนี้ไปจัดเรียงเป็นตารางเวลาให้สมบูรณ์ โดยจัดกลุ่มหัวข้อที่คล้ายกันให้อยู่ใกล้กัน:
+                                    {agenda_list_str}
                                     
-                                st.session_state.ai_draft_df = recalculate_schedule_times(df_initial, base_start_dt)
-                                st.success("🎉 AI สร้างตารางเสร็จสิ้น!")
-                            except Exception as e:
-                                st.error(f"เกิดข้อผิดพลาดจาก AI: {e}")
+                                    กฎ (Rules):
+                                    1. {start_str}-{opening_end_str} น.: เปิดงาน/แจ้งสถานการณ์ (คงที่, ใช้เวลา 45 นาที)
+                                    2. 12.00-13.00 น.: พักรับประทานอาหารกลางวัน (คงที่)
+                                    3. 16.30-17.00 น.: สรุปงาน/ปิดการประชุม (คงที่)
+                                    4. แทรก 'พักเบรก 15 นาที' จำนวน 2 ครั้ง (เช้า 1, บ่าย 1) ใกล้กึ่งกลางช่วงที่สุด
+                                    5. ห้ามแทรกเบรกตัดกลางวาระใดๆ โดยเด็ดขาด
+                                    
+                                    ⚠️ ข้อกำหนดรูปแบบการตอบกลับ (Strict Output Format):
+                                    ห้ามพิมพ์คำอธิบายใดๆ ทั้งสิ้น ให้ตอบกลับมาเป็นข้อมูลคั่นด้วยเครื่องหมาย Pipe (|) เท่านั้น
+                                    โดยไม่ต้องมี Header (ไม่ต้องพิมพ์ Time|Topic|...) 
+                                    ตัวอย่างการตอบกลับ:
+                                    08.30-09.15|เปิดงาน/แจ้งสถานการณ์|Admin|45
+                                    09.15-10.15|อัปเดตสถานการณ์ PRRS|น.สพ.สมชาย|60
+                                    """
+                                    response = vision_model.generate_content(prompt)
+                                    raw_text = response.text.strip().replace("```csv", "").replace("```text", "").replace("```", "").strip()
+                                    
+                                    # 🛡️ Defensive Programming: บังคับยัด Header เอง และรับมือกับข้อมูลขยะ
+                                    # 1. สั่งให้อ่านโดยไม่ใช้ข้อมูลแถวแรกเป็น Header (header=None) และกำหนดชื่อคอลัมน์ตายตัว
+                                    df_initial = pd.read_csv(io.StringIO(raw_text), sep='|', names=['Time', 'Topic', 'Presenter', 'Duration'], header=None)
+                                    
+                                    # 2. Data Cleaning: ถ้า AI ดื้อพิมพ์ Header มาให้ (บรรทัดแรกมีคำว่า Time หรือ Topic) ให้ลบแถวนั้นทิ้ง!
+                                    if df_initial.iloc[0]['Time'] == 'Time' or df_initial.iloc[0]['Topic'] == 'Topic':
+                                        df_initial = df_initial.iloc[1:].reset_index(drop=True)
+                                        
+                                    # 3. Data Cleaning: กำจัดเส้นคั่นตาราง Markdown (เช่น ---|---|---) หาก AI แอบใส่มา
+                                    df_initial = df_initial[~df_initial['Time'].astype(str).str.contains('---')].reset_index(drop=True)
+                                    
+                                    if 'Order' not in df_initial.columns:
+                                        df_initial.insert(0, 'Order', [float(i) for i in range(1, len(df_initial) + 1)])
+                                        
+                                    st.session_state.ai_draft_df = recalculate_schedule_times(df_initial, base_start_dt)
+                                    st.success("🎉 AI สร้างตารางเสร็จสิ้น!")
+                                except Exception as e:
+                                    st.error(f"เกิดข้อผิดพลาดจาก AI: {e}")
 
                     if 'ai_draft_df' in st.session_state:
                         st.markdown("### 📝 ตรวจสอบและแก้ไขตาราง (Admin Editor)")
