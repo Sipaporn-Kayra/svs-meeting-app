@@ -41,7 +41,7 @@ def get_cached_settings():
 def get_cached_users():
     return sheet_user.get_all_records()
 
-# 3. ดึงข้อมูลเมนูแบบไดนามิกจาก Settings (ผ่าน Cache)
+# 3. ดึงข้อมูลเมนูและรายชื่อจาก Settings (ผ่าน Cache)
 settings_data = get_cached_settings()
 
 if len(settings_data) > 1:
@@ -54,10 +54,17 @@ if len(settings_data) > 1:
         sweet_options = [x for x in df_settings['Sweetness'].tolist() if x != ""]
     else:
         sweet_options = ["หวานปกติ (100%)", "หวานน้อย (50%)", "ไม่หวาน (0%)", "หวานมาก (120%)"]
+        
+    # 📌 Backward Compatibility: ดึงรายชื่อพนักงาน (ถ้ายังไม่มีคอลัมน์นี้ ให้ใส่ค่า Default ป้องกันระบบพัง)
+    if 'Employee_Name' in df_settings.columns:
+        employee_options = [x for x in df_settings['Employee_Name'].tolist() if x != ""]
+    else:
+        employee_options = ["Admin", "Kayra", "Sipaporn", "เบล", "น.สพ.สมชาย"]
 else:
     lunch_options, drink_options, sport_options = [], [], []
     sweet_options = ["หวานปกติ (100%)", "หวานน้อย (50%)", "ไม่หวาน (0%)", "หวานมาก (120%)"]
-
+    employee_options = ["Admin", "Kayra", "Sipaporn", "เบล", "น.สพ.สมชาย"]
+    
 if 'draft_lunch' not in st.session_state:
     st.session_state.draft_lunch = ",".join(lunch_options)
 if 'draft_drink' not in st.session_state:
@@ -119,10 +126,13 @@ with tab1:
     st.header("แบบฟอร์มลงทะเบียนเข้าร่วมประชุม")
     with st.form("register_form"):
         st.subheader("1. ข้อมูลส่วนตัว")
-        name = st.text_input("ชื่อ-นามสกุล")
+
+        # 📌 อัปเกรด: เปลี่ยนจากการพิมพ์ข้อความ (Text Input) เป็น Dropdown List (Selectbox) เพื่อทำ Master Data
+        name = st.selectbox("ชื่อ-นามสกุล (สามารถพิมพ์ค้นหาได้)", employee_options)
+        
         is_attending = st.radio("สถานะการเข้าร่วม", ["เข้าร่วม", "ไม่เข้าร่วม"])
         
-        st.subheader("2. สวัสดิการ (อัปเดตเมนูแบบไดนามิก)")
+        st.subheader("2. สวัสดิการ ")
         lunch = st.multiselect("เมนูอาหารกลางวัน (เลือกได้มากกว่า 1 อย่าง)", lunch_options)
         
         st.markdown("---")
@@ -249,6 +259,10 @@ with tab2:
         
         st.subheader("⚙️ ตรวจสอบและตั้งค่าสวัสดิการประจำรอบ (คั่นด้วยเครื่องหมาย ,)")
         
+        # 📌 อัปเกรด: เพิ่มกล่องตั้งค่ารายชื่อพนักงานให้แอดมินจัดการได้เอง
+        st.markdown("##### 👥 รายชื่อพนักงาน (Employee List)")
+        new_employee_str = st.text_area("รายชื่อพนักงานทั้งหมด (เรียงตามลำดับที่ต้องการให้แสดง)", value=",".join(employee_options), height=80)
+        
         config_row1_col1, config_row1_col2 = st.columns(2)
         with config_row1_col1:
             new_lunch_str = st.text_area("รายการอาหารกลางวัน", value=st.session_state.draft_lunch, height=120)
@@ -266,19 +280,22 @@ with tab2:
             list_drink = list(dict.fromkeys([x.strip() for x in new_drink_str.split(",") if x.strip() != ""]))
             list_sport = list(dict.fromkeys([x.strip() for x in new_sport_str.split(",") if x.strip() != ""]))
             list_sweet = list(dict.fromkeys([x.strip() for x in new_sweet_str.split(",") if x.strip() != ""]))
+            list_employee = list(dict.fromkeys([x.strip() for x in new_employee_str.split(",") if x.strip() != ""]))
             
             max_len = max(len(list_lunch), len(list_drink), len(list_sport), len(list_sweet))
             list_lunch += [""] * (max_len - len(list_lunch))
             list_drink += [""] * (max_len - len(list_drink))
             list_sport += [""] * (max_len - len(list_sport))
             list_sweet += [""] * (max_len - len(list_sweet))
+            list_employee += [""] * (max_len - len(list_employee))
             
             sheet_settings.clear()
-            sheet_settings.append_row(["Lunch", "Drink", "Sport", "Sweetness"])
+            # 📌 โครงสร้าง Database ใหม่ มี 5 คอลัมน์
+            sheet_settings.append_row(["Lunch", "Drink", "Sport", "Sweetness", "Employee_Name"])
             for i in range(max_len):
-                sheet_settings.append_row([list_lunch[i], list_drink[i], list_sport[i], list_sweet[i]])
+                sheet_settings.append_row([list_lunch[i], list_drink[i], list_sport[i], list_sweet[i], list_employee[i]])
                 
-            st.success("🎉 อัปเดตรายการสวัสดิการและระดับความหวานสำเร็จ!")
+            st.success("🎉 อัปเดตข้อมูลทั้งหมดสำเร็จ!")
             st.session_state.draft_lunch = ",".join([x for x in list_lunch if x != ""])
             st.session_state.draft_drink = ",".join([x for x in list_drink if x != ""])
             
@@ -303,6 +320,8 @@ with tab2:
                     lunch_series = lunch_series[~lunch_series.isin(["ไม่ได้ระบุ", "-"])]
                     st.bar_chart(lunch_series.value_counts(), color="#FF4B4B")
                 with chart_col2:
+                    drink_series = df_attending['Drink']
+                    drink_series = drink_series[~drink_series.isin(["ไม่ได้ระบุ", "-"])]
                     st.bar_chart(df_attending['Drink'].value_counts(), color="#00C0F2")
                     
             st.subheader("📋 ตารางรายชื่อและข้อมูลดิบทั้งหมด (Raw Data)")
