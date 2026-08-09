@@ -48,13 +48,11 @@ if len(settings_data) > 1:
     drink_options = [x for x in df_settings['Drink'].tolist() if x != ""]
     sport_options = [x for x in df_settings['Sport'].tolist() if x != ""]
     sweet_options = [x for x in df_settings['Sweetness'].tolist() if x != ""]if 'Sweetness' in df_settings.columns else ["หวานปกติ (100%)", "หวานน้อย (50%)", "ไม่หวาน (0%)", "หวานมาก (120%)"]
-    employee_options = [x for x in df_settings['Employee_Name'].tolist() if x != ""] if 'Employee_Name' in df_settings.columns else ["Admin", "Kayra"]
-        
-# 📌 ดึง Master Data วันที่ประชุม
-    date_options = [x for x in df_settings['Meeting_Dates'].tolist() if x != ""] if 'Meeting_Dates' in df_settings.columns else [datetime.now().strftime("%Y-%m-%d")]
+    employee_options = [x for x in df_settings['Employee_Name'].tolist() if x != ""] if 'Employee_Name' in df_settings.columns else ["Admin", "Kayra"]        
 else:
-    lunch_options, drink_options, sport_options, sweet_options, employee_options = [], [], [], ["หวานปกติ (100%)"], ["Admin", "Kayra"]
-    date_options = [datetime.now().strftime("%Y-%m-%d")]
+    lunch_options, drink_options, sport_options = [], [], []
+    sweet_options = ["หวานปกติ (100%)", "หวานน้อย (50%)", "ไม่หวาน (0%)", "หวานมาก (120%)"]
+    employee_options = ["Admin", "Kayra"]
     
 if 'draft_lunch' not in st.session_state:
     st.session_state.draft_lunch = ",".join(lunch_options)
@@ -107,93 +105,64 @@ with tab1:
         st.subheader("1. ข้อมูลส่วนตัว")
         name = st.selectbox("ชื่อ-นามสกุล (สามารถพิมพ์ค้นหาได้)", employee_options)    
         is_attending = st.radio("สถานะการเข้าร่วม", ["เข้าร่วม", "ไม่เข้าร่วม"])
-
-        # 📌 สถาปัตยกรรมแบบ Dynamic UI: สร้างฟอร์มแยกตามวันที่เลือก
-        selected_dates = st.multiselect("📅 เลือกวันที่เข้าร่วมประชุม (เลือกได้หลายวัน)", date_options)
         
-        day_choices = {} # กล่องเก็บความจำชั่วคราวว่าวันไหนเลือกกินอะไร
-        if is_attending == "เข้าร่วม" and len(selected_dates) > 0:
-            st.subheader("2. สวัสดิการ (แยกตามวัน)")
-            
-            # วนลูปสร้าง Sub-form ตามวันที่เลือก
-            for d in selected_dates:
-                with st.expander(f"🍽️ กำหนดสวัสดิการสำหรับวันที่: {d}", expanded=True):
-                    lunch = st.multiselect(f"เมนูอาหารกลางวัน ({d})", lunch_options, key=f"lunch_{d}")
-                    
-                    drink_col1, drink_col2 = st.columns(2)
-                    with drink_col1:
-                        drink_base = st.selectbox("เมนูหลัก", drink_options, key=f"drink_{d}")
-                        drink_roast = st.selectbox("เมล็ดกาแฟ", ["ไม่ระบุ", "คั่วอ่อน", "คั่วกลาง", "คั่วเข้ม"], key=f"roast_{d}")
-                    with drink_col2:
-                        drink_temp = st.selectbox("รูปแบบ", ["เย็น", "ร้อน", "ปั่น"], key=f"temp_{d}")
-                        drink_sweet = st.selectbox("ระดับความหวาน", sweet_options, key=f"sweet_{d}")
-                    
-                    sport = st.selectbox(f"กิจกรรมกีฬา ({d})", sport_options, key=f"sport_{d}")
-                    
-                    # เก็บเข้า Dictionary
-                    day_choices[d] = {
-                        "lunch": lunch,
-                        "drink": f"{drink_base} ({drink_temp}{', '+drink_roast if drink_roast != 'ไม่ระบุ' else ''}, {drink_sweet})",
-                        "sport": sport
-                    }
+        st.subheader("2. สวัสดิการ (อัปเดตเมนูแบบไดนามิก)")
+        lunch = st.multiselect("เมนูอาหารกลางวัน (เลือกได้มากกว่า 1 อย่าง)", lunch_options)
+
+        st.markdown("---")
+        st.write("**รายละเอียดเครื่องดื่ม**")
+        drink_col1, drink_col2 = st.columns(2)
+        with drink_col1:
+            drink_base = st.selectbox("1. เมนูหลัก", drink_options)
+            drink_roast = st.selectbox("3. เมล็ดกาแฟ (สำหรับเมนูกาแฟ)", ["ไม่ระบุ", "คั่วอ่อน", "คั่วกลาง", "คั่วเข้ม"])
+        with drink_col2:
+            drink_temp = st.selectbox("2. รูปแบบ", ["เย็น", "ร้อน", "ปั่น"])
+            drink_sweet = st.selectbox("4. ระดับความหวาน", sweet_options)
+        
+        st.markdown("---")
+        sport = st.selectbox("กิจกรรมกีฬาช่วงเย็น", sport_options)
         
         st.subheader("3. วาระการประชุม (เสนอได้หลายวาระ)")
         st.info("💡 หากมีมากกว่า 1 วาระ ให้พิมพ์ในตารางด้านล่าง และกำหนด 'เวลา' ของแต่ละวาระแยกกันได้เลย (กดปุ่ม + ด้านล่างตารางเพื่อเพิ่มวาระ)")
         
-        # 📌 อัปเกรด Data Editor: เพิ่มคอลัมน์ Dropdown ให้เลือกวันที่จะพรีเซนต์
-        default_agenda = pd.DataFrame([{"วันที่นำเสนอ": date_options[0] if date_options else "", "หัวข้อการประชุม": "", "เวลาที่ใช้ (นาที)": 0}])
+        default_agenda = pd.DataFrame([{"หัวข้อการประชุม": "", "เวลาที่ใช้ (นาที)": 0}])
         user_agendas = st.data_editor(
             default_agenda, 
             num_rows="dynamic", 
             use_container_width=True,
-            hide_index=True,
-            column_config={
-                "วันที่นำเสนอ": st.column_config.SelectboxColumn("วันที่นำเสนอ", options=date_options, required=True)
-            }
+            hide_index=True
         )
         
         submitted = st.form_submit_button("ส่งข้อมูลลงทะเบียน")
         
         if submitted:
             if name == "":
-                st.error("กรุณากรอกชื่อ-นามสกุลด้วยครับ!")
-            elif is_attending == "เข้าร่วม" and len(selected_dates) == 0:
-                st.error("กรุณาเลือกวันที่เข้าร่วมอย่างน้อย 1 วันครับ!")   
+                st.error("กรุณาเลือกชื่อ-นามสกุลด้วยครับ!")
             else:
                 timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                 valid_agendas = user_agendas[user_agendas["หัวข้อการประชุม"].str.strip() != ""]
-
-                # 📌 หากตารางเก่าไม่มีหัวคอลัมน์ ให้สร้างใหม่ (รวม Date)
-                if len(sheet_user.get_all_values()) == 0:
-                    sheet_user.append_row(["Timestamp", "Name", "Attendance", "Date", "Lunch", "Drink", "Sport", "Topic", "Time"])
                 
                 if is_attending == "ไม่เข้าร่วม":
-                   sheet_user.append_row([timestamp, name, "ไม่เข้าร่วม", "-", "-", "-", "-","-", 0])
+                    sheet_user.append_row([timestamp, name, "ไม่เข้าร่วม", "-", "-", "-", "-", 0])
+                elif valid_agendas.empty:
+                    lunch_str = ", ".join(lunch) if len(lunch) > 0 else "ไม่ได้ระบุ"
+                    roast_str = f", {drink_roast}" if drink_roast != "ไม่ระบุ" else ""
+                    final_drink_str = f"{drink_base} ({drink_temp}{roast_str}, {drink_sweet})"
+                    sheet_user.append_row([timestamp, name, "เข้าร่วม", lunch_str, final_drink_str, sport, "-", 0])
                 else:
-                    # 📌 Data Denormalization: วนลูปบันทึกข้อมูล "ทีละวัน"
-                    for d in selected_dates:
-                        lunch_str = ", ".join(day_choices[d]["lunch"]) if len(day_choices[d]["lunch"]) > 0 else "ไม่ได้ระบุ"
-                        final_drink_str = day_choices[d]["drink"]
-                        sport_str = day_choices[d]["sport"]
+                    lunch_str = ", ".join(lunch) if len(lunch) > 0 else "ไม่ได้ระบุ"
+                    roast_str = f", {drink_roast}" if drink_roast != "ไม่ระบุ" else ""
+                    final_drink_str = f"{drink_base} ({drink_temp}{roast_str}, {drink_sweet})"
+                    
+                    for i, (idx, row) in enumerate(valid_agendas.iterrows()):
+                        topic_val = str(row["หัวข้อการประชุม"]).strip()
+                        time_val = int(row["เวลาที่ใช้ (นาที)"])
                         
-                        # กรองหาวาระเฉพาะของ "วันนี้"
-                        agendas_for_day = valid_agendas[valid_agendas["วันที่นำเสนอ"] == d]
-                        
-                        if agendas_for_day.empty:
-                            sheet_user.append_row([timestamp, name, "เข้าร่วม", d, lunch_str, final_drink_str, sport_str, "-", 0])
+                        if i == 0:
+                            sheet_user.append_row([timestamp, name, "เข้าร่วม", lunch_str, final_drink_str, sport, topic_val, time_val])
                         else:
-                            is_first_row = True
-                            for idx, row in agendas_for_day.iterrows():
-                                topic_val = str(row["หัวข้อการประชุม"]).strip()
-                                time_val = int(row["เวลาที่ใช้ (นาที)"])
-                                
-                                if is_first_row:
-                                    sheet_user.append_row([timestamp, name, "เข้าร่วม", d, lunch_str, final_drink_str, sport_str, topic_val, time_val])
-                                    is_first_row = False
-                                else:
-                                    # ซ่อนข้อมูลสวัสดิการในบรรทัดที่ 2 ขึ้นไป ป้องกันกราฟเบิ้ล
-                                    sheet_user.append_row([timestamp, name, "เข้าร่วม", d, "-", "-", "-", topic_val, time_val])
-                                    
+                            sheet_user.append_row([timestamp, name, "เข้าร่วม", "-", "-", "-", topic_val, time_val])
+                            
                 st.success("บันทึกข้อมูลเรียบร้อย!")
                 get_cached_users.clear()
                 st.balloons()
@@ -254,13 +223,13 @@ with tab2:
         
         st.divider()
         
-        st.subheader("⚙️ ตรวจสอบและตั้งค่า Master Data ประจำรอบ")
-        st.info("💡 สามารถเพิ่ม/ลด 'วันที่จัดประชุม' เพื่อเปิดระบบลงทะเบียนแบบหลายวันได้ที่นี่")
-        
-        # 📌 อัปเกรด: เพิ่มกล่องใส่วันที่
-        new_dates_str = st.text_area("📅 วันที่จัดประชุม (คั่นด้วยลูกน้ำ เช่น 27 ส.ค., 28 ส.ค.)", value=",".join(date_options), height=60)
-        new_employee_str = st.text_area("👥 รายชื่อพนักงาน", value=",".join(employee_options), height=80)
-        
+        st.subheader("⚙️ ตรวจสอบและตั้งค่า Master Data ประจำรอบ (คั่นด้วยเครื่องหมาย ,)")
+    
+        # 📌 อัปเกรด: เพิ่มกล่องตั้งค่ารายชื่อพนักงานให้แอดมินจัดการได้เอง
+        st.markdown("##### 👥 รายชื่อพนักงาน (Employee List)")
+        new_employee_str = st.text_area("รายชื่อพนักงานทั้งหมด (เรียงตามลำดับที่ต้องการให้แสดง)", value=",".join(employee_options), height=80)
+       
+        st.markdown("##### 🍔 เมนูสวัสดิการ")
         config_row1_col1, config_row1_col2 = st.columns(2)
         with config_row1_col1:
             new_lunch_str = st.text_area("รายการอาหารกลางวัน", value=st.session_state.draft_lunch, height=120)
@@ -279,9 +248,9 @@ with tab2:
             list_sport = list(dict.fromkeys([x.strip() for x in new_sport_str.split(",") if x.strip() != ""]))
             list_sweet = list(dict.fromkeys([x.strip() for x in new_sweet_str.split(",") if x.strip() != ""]))
             list_employee = list(dict.fromkeys([x.strip() for x in new_employee_str.split(",") if x.strip() != ""]))
-            list_dates = list(dict.fromkeys([x.strip() for x in new_dates_str.split(",") if x.strip() != ""]))
-            
-            max_len = max(len(list_lunch), len(list_drink), len(list_sport), len(list_sweet), len(list_employee), len(list_dates))
+           
+            # 📌 Data Padding: คำนวณความยาวสูงสุดจาก 5 คอลัมน์  
+            max_len = max(len(list_lunch), len(list_drink), len(list_sport), len(list_sweet), len(list_employee))
             list_lunch += [""] * (max_len - len(list_lunch))
             list_drink += [""] * (max_len - len(list_drink))
             list_sport += [""] * (max_len - len(list_sport))
@@ -290,7 +259,7 @@ with tab2:
             
             sheet_settings.clear()
             # 📌 อัปเดตโครงสร้าง Database ใส่ Meeting_Dates
-            sheet_settings.append_row(["Lunch", "Drink", "Sport", "Sweetness", "Employee_Name", "Meeting_Dates"])
+            sheet_settings.append_row(["Lunch", "Drink", "Sport", "Sweetness", "Employee_Name"])
             for i in range(max_len):
                 sheet_settings.append_row([list_lunch[i], list_drink[i], list_sport[i], list_sweet[i], list_employee[i], list_dates[i]])
                 
@@ -305,17 +274,9 @@ with tab2:
         data = get_cached_users()
         if data:
             df = pd.DataFrame(data)
-            
-            # 📌 ตัวกรองข้อมูลแอดมิน: ให้แอดมินเลือกดูยอดแยกตามวันได้!
-            st.markdown("### 🔍 สรุปข้อมูลแยกตามวัน")
-            if 'Date' in df.columns:
-                filter_date = st.selectbox("เลือกวันที่ต้องการดูข้อมูล", ["รวมทุกวัน"] + date_options)
-                if filter_date != "รวมทุกวัน":
-                    df = df[df['Date'] == filter_date]
+            st.subheader("🍔 ยอดสรุปการสั่งอาหารและเครื่องดื่ม")
 
             df_attending = df[df['Attendance'] == 'เข้าร่วม']
-            
-            st.subheader("🍔 ยอดสรุปการสั่งอาหารและเครื่องดื่ม") 
             if not df_attending.empty:
                 chart_col1, chart_col2 = st.columns(2)
                 with chart_col1:
@@ -333,7 +294,7 @@ with tab2:
             st.divider()
             st.header("🧠 AI Scheduling Engine (ร่างตารางอัตโนมัติ)")
             
-            if not df_attending.empty and filter_date != "รวมทุกวัน":
+            if not df_attending.empty:
                 df_attending['Topic_Clean'] = df_attending['Topic'].astype(str).str.strip()
                 df_agenda = df_attending[(df_attending['Topic_Clean'] != "") & (df_attending['Topic_Clean'] != "-") & (df_attending['Topic_Clean'].str.lower() != "nan")].copy()
                 
@@ -344,7 +305,9 @@ with tab2:
                 
                 base_start_dt = datetime.combine(datetime.today(), input_time)
                 opening_end_dt = base_start_dt + timedelta(minutes=45) 
-                start_str, opening_end_str = base_start_dt.strftime("%H.%M"), opening_end_dt.strftime("%H.%M")
+                
+                start_str = base_start_dt.strftime("%H.%M")
+                opening_end_str = opening_end_dt.strftime("%H.%M")
                 
                 st.info(f"💡 วาระเปิดงาน 45 นาที จะถูกจัดสรรให้อัตโนมัติในช่วง: **{start_str} น. - {opening_end_str} น.**")
                 
@@ -353,9 +316,13 @@ with tab2:
                 else:
                     df_agenda['Time_Numeric'] = pd.to_numeric(df_agenda['Time'], errors='coerce').fillna(0)
                     total_requested_time = int(df_agenda['Time_Numeric'].sum())
-                    quota_time = 1020 - ((input_time.hour * 60) + input_time.minute) - 165
-                    quota_time = 0 if quota_time < 0 else quota_time
+                   end_time_mins = 1020 
+                    start_time_mins = (input_time.hour * 60) + input_time.minute
+                    quota_time = end_time_mins - start_time_mins - 165
                     
+                    if quota_time < 0:
+                        quota_time = 0
+                        
                     st.write(f"⏱️ **เวลาที่ต้องการใช้ทั้งหมด:** {total_requested_time} นาที / โควตาจัดสรร: {quota_time} นาที")
                     
                     if total_requested_time > quota_time:
