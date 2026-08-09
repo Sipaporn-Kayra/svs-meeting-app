@@ -103,95 +103,97 @@ tab1, tab2 = st.tabs(["📝 ฟอร์มลงทะเบียน (User)", 
 # ==========================================
 with tab1:
     st.header("แบบฟอร์มลงทะเบียนเข้าร่วมประชุม")
-    with st.form("register_form"):
-        st.subheader("1. ข้อมูลส่วนตัว")
-        name = st.selectbox("ชื่อ-นามสกุล (สามารถพิมพ์ค้นหาได้)", employee_options)
-        is_attending = st.radio("สถานะการเข้าร่วม", ["เข้าร่วม", "ไม่เข้าร่วม"])
-        
-        selected_dates = st.multiselect("📅 เลือกวันที่เข้าร่วมประชุม (เลือกได้หลายวัน)", date_options)
-        day_choices = {} 
-        
-        # 💡 จุดที่ซ่อนสวัสดิการไว้ จนกว่าจะเลือกวันที่ (Dynamic UI)
-        if is_attending == "เข้าร่วม" and len(selected_dates) > 0:
-            st.subheader("2. สวัสดิการ (เลือกแยกตามวันได้)")
-            for d in selected_dates:
-                with st.expander(f"🍽️ กำหนดสวัสดิการสำหรับวันที่: {d}", expanded=True):
-                    lunch = st.multiselect(f"เมนูอาหารกลางวัน ({d})", lunch_options, key=f"lunch_{d}")
-                    
-                    drink_col1, drink_col2 = st.columns(2)
-                    with drink_col1:
-                        drink_base = st.selectbox("เมนูหลัก", drink_options, key=f"drink_{d}")
-                        drink_roast = st.selectbox("เมล็ดกาแฟ", ["ไม่ระบุ", "คั่วอ่อน", "คั่วกลาง", "คั่วเข้ม"], key=f"roast_{d}")
-                    with drink_col2:
-                        drink_temp = st.selectbox("รูปแบบ", ["เย็น", "ร้อน", "ปั่น"], key=f"temp_{d}")
-                        drink_sweet = st.selectbox("ระดับความหวาน", sweet_options, key=f"sweet_{d}")
-                    
-                    sport = st.selectbox(f"กิจกรรมกีฬา ({d})", sport_options, key=f"sport_{d}")
-                    
-                    day_choices[d] = {
-                        "lunch": lunch,
-                        "drink": f"{drink_base} ({drink_temp}{', '+drink_roast if drink_roast != 'ไม่ระบุ' else ''}, {drink_sweet})",
-                        "sport": sport
-                    }
-        
-        st.subheader("3. วาระการประชุม (เสนอได้หลายวาระ)")
-        st.info("💡 หากมีมากกว่า 1 วาระ ให้พิมพ์ในตารางด้านล่าง ระบุเวลาแยกกัน และเลือก 'วันที่นำเสนอ' ให้ถูกต้อง")
-        
-        default_agenda = pd.DataFrame([{"วันที่นำเสนอ": date_options[0] if date_options else "", "หัวข้อการประชุม": "", "เวลาที่ใช้ (นาที)": 0}])
-        user_agendas = st.data_editor(
-            default_agenda, 
-            num_rows="dynamic", 
-            use_container_width=True,
-            hide_index=True,
-            column_config={
-                "วันที่นำเสนอ": st.column_config.SelectboxColumn("วันที่นำเสนอ", options=date_options, required=True)
-            }
-        )
-        
-        submitted = st.form_submit_button("ส่งข้อมูลลงทะเบียน")
-        
-        if submitted:
-            if name == "":
-                st.error("กรุณาเลือกชื่อ-นามสกุลด้วยครับ!")
-            elif is_attending == "เข้าร่วม" and len(selected_dates) == 0:
-                st.error("กรุณาเลือกวันที่เข้าร่วมอย่างน้อย 1 วันครับ!")
+    
+    # 📌 The Fix: ถอด with st.form() ออก เปลี่ยนเป็น Reactive UI เต็มรูปแบบ!
+    st.subheader("1. ข้อมูลส่วนตัว")
+    name = st.selectbox("ชื่อ-นามสกุล (สามารถพิมพ์ค้นหาได้)", employee_options)
+    is_attending = st.radio("สถานะการเข้าร่วม", ["เข้าร่วม", "ไม่เข้าร่วม"])
+    
+    # พอกดเลือกปุ๊บ ตัวแปร selected_dates จะรับค่าทันที และทำให้บล็อกอาหารถูกปลดล็อก!
+    selected_dates = st.multiselect("📅 เลือกวันที่เข้าร่วมประชุม (เลือกได้หลายวัน)", date_options)
+    day_choices = {} 
+    
+    if is_attending == "เข้าร่วม" and len(selected_dates) > 0:
+        st.subheader("2. สวัสดิการ (เลือกแยกตามวันได้)")
+        for d in selected_dates:
+            with st.expander(f"🍽️ กำหนดสวัสดิการสำหรับวันที่: {d}", expanded=True):
+                lunch = st.multiselect(f"เมนูอาหารกลางวัน ({d})", lunch_options, key=f"lunch_{d}")
+                
+                drink_col1, drink_col2 = st.columns(2)
+                with drink_col1:
+                    drink_base = st.selectbox("เมนูหลัก", drink_options, key=f"drink_{d}")
+                    drink_roast = st.selectbox("เมล็ดกาแฟ", ["ไม่ระบุ", "คั่วอ่อน", "คั่วกลาง", "คั่วเข้ม"], key=f"roast_{d}")
+                with drink_col2:
+                    drink_temp = st.selectbox("รูปแบบ", ["เย็น", "ร้อน", "ปั่น"], key=f"temp_{d}")
+                    drink_sweet = st.selectbox("ระดับความหวาน", sweet_options, key=f"sweet_{d}")
+                
+                sport = st.selectbox(f"กิจกรรมกีฬา ({d})", sport_options, key=f"sport_{d}")
+                
+                day_choices[d] = {
+                    "lunch": lunch,
+                    "drink": f"{drink_base} ({drink_temp}{', '+drink_roast if drink_roast != 'ไม่ระบุ' else ''}, {drink_sweet})",
+                    "sport": sport
+                }
+    
+    st.subheader("3. วาระการประชุม (เสนอได้หลายวาระ)")
+    st.info("💡 หากมีมากกว่า 1 วาระ ให้พิมพ์ในตารางด้านล่าง ระบุเวลาแยกกัน และเลือก 'วันที่นำเสนอ' ให้ถูกต้อง")
+    
+    default_agenda = pd.DataFrame([{"วันที่นำเสนอ": date_options[0] if date_options else "", "หัวข้อการประชุม": "", "เวลาที่ใช้ (นาที)": 0}])
+    user_agendas = st.data_editor(
+        default_agenda, 
+        num_rows="dynamic", 
+        use_container_width=True,
+        hide_index=True,
+        column_config={
+            "วันที่นำเสนอ": st.column_config.SelectboxColumn("วันที่นำเสนอ", options=date_options, required=True)
+        }
+    )
+    
+    # 📌 เปลี่ยนฟังก์ชัน Submit เป็นปุ่มกดธรรมดาที่ผูกกับ Logic การเซฟ
+    submitted = st.button("ส่งข้อมูลลงทะเบียน", type="primary", use_container_width=True)
+    
+    if submitted:
+        if name == "":
+            st.error("กรุณาเลือกชื่อ-นามสกุลด้วยครับ!")
+        elif is_attending == "เข้าร่วม" and len(selected_dates) == 0:
+            st.error("กรุณาเลือกวันที่เข้าร่วมอย่างน้อย 1 วันครับ!")
+        else:
+            timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            valid_agendas = user_agendas[user_agendas["หัวข้อการประชุม"].str.strip() != ""]
+            
+            if len(sheet_user.get_all_values()) == 0:
+                sheet_user.append_row(["Timestamp", "Name", "Attendance", "Date", "Lunch", "Drink", "Sport", "Topic", "Time"])
+            
+            if is_attending == "ไม่เข้าร่วม":
+                sheet_user.append_row([timestamp, name, "ไม่เข้าร่วม", "-", "-", "-", "-", "-", 0])
             else:
-                timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                valid_agendas = user_agendas[user_agendas["หัวข้อการประชุม"].str.strip() != ""]
-                
-                if len(sheet_user.get_all_values()) == 0:
-                    sheet_user.append_row(["Timestamp", "Name", "Attendance", "Date", "Lunch", "Drink", "Sport", "Topic", "Time"])
-                
-                if is_attending == "ไม่เข้าร่วม":
-                    sheet_user.append_row([timestamp, name, "ไม่เข้าร่วม", "-", "-", "-", "-", "-", 0])
-                else:
-                    for d in selected_dates:
-                        lunch_str = ", ".join(day_choices[d]["lunch"]) if len(day_choices[d]["lunch"]) > 0 else "ไม่ได้ระบุ"
-                        final_drink_str = day_choices[d]["drink"]
-                        sport_str = day_choices[d]["sport"]
-                        
-                        agendas_for_day = valid_agendas[valid_agendas["วันที่นำเสนอ"] == d]
-                        
-                        if agendas_for_day.empty:
-                            sheet_user.append_row([timestamp, name, "เข้าร่วม", d, lunch_str, final_drink_str, sport_str, "-", 0])
-                        else:
-                            is_first_row = True
-                            for idx, row in agendas_for_day.iterrows():
-                                topic_val = str(row["หัวข้อการประชุม"]).strip()
-                                time_val = int(row["เวลาที่ใช้ (นาที)"])
+                for d in selected_dates:
+                    lunch_str = ", ".join(day_choices[d]["lunch"]) if len(day_choices[d]["lunch"]) > 0 else "ไม่ได้ระบุ"
+                    final_drink_str = day_choices[d]["drink"]
+                    sport_str = day_choices[d]["sport"]
+                    
+                    agendas_for_day = valid_agendas[valid_agendas["วันที่นำเสนอ"] == d]
+                    
+                    if agendas_for_day.empty:
+                        sheet_user.append_row([timestamp, name, "เข้าร่วม", d, lunch_str, final_drink_str, sport_str, "-", 0])
+                    else:
+                        is_first_row = True
+                        for idx, row in agendas_for_day.iterrows():
+                            topic_val = str(row["หัวข้อการประชุม"]).strip()
+                            time_val = int(row["เวลาที่ใช้ (นาที)"])
+                            
+                            if is_first_row:
+                                sheet_user.append_row([timestamp, name, "เข้าร่วม", d, lunch_str, final_drink_str, sport_str, topic_val, time_val])
+                                is_first_row = False
+                            else:
+                                sheet_user.append_row([timestamp, name, "เข้าร่วม", d, "-", "-", "-", topic_val, time_val])
                                 
-                                if is_first_row:
-                                    sheet_user.append_row([timestamp, name, "เข้าร่วม", d, lunch_str, final_drink_str, sport_str, topic_val, time_val])
-                                    is_first_row = False
-                                else:
-                                    sheet_user.append_row([timestamp, name, "เข้าร่วม", d, "-", "-", "-", topic_val, time_val])
-                                    
-                st.success("บันทึกข้อมูลเรียบร้อย!")
-                get_cached_users.clear() 
-                st.balloons()
+            st.success("บันทึกข้อมูลเรียบร้อย!")
+            get_cached_users.clear() 
+            st.balloons()
 
 # ==========================================
-# แท็บที่ 2: แดชบอร์ดแอดมิน
+# แท็บที่ 2: แดชบอร์ดแอดมิน (คงเดิมจากเวอร์ชันสมบูรณ์)
 # ==========================================
 with tab2:
     st.header("📊 หน้าควบคุมและสรุปผลสำหรับแอดมิน")
@@ -266,7 +268,6 @@ with tab2:
             
         st.divider()
         
-        # 📌 สถาปัตยกรรมจัดการ "Empty State" อย่างมืออาชีพ
         data = get_cached_users()
         df = pd.DataFrame(data) if data else pd.DataFrame()
         df_attending = pd.DataFrame()
@@ -296,13 +297,11 @@ with tab2:
             st.subheader("📋 ตารางรายชื่อและข้อมูลดิบทั้งหมด (Raw Data)")
             st.dataframe(df, use_container_width=True)
         else:
-            # 💡 ถ้าไม่มีข้อมูลเลย ให้แสดงข้อความแจ้งเตือนที่ชัดเจน แทนที่จะปล่อยจอโล่ง
-            st.info("📌 ยังไม่มีข้อมูลผู้ลงทะเบียนในระบบ (Empty State) แดชบอร์ดสรุปยอดและตารางข้อมูลจะปรากฏขึ้นอัตโนมัติเมื่อมีผู้ใช้งานลงทะเบียนเข้ามาครับ")
+            st.info("📌 ยังไม่มีข้อมูลผู้ลงทะเบียนในระบบ แดชบอร์ดสรุปยอดและตารางข้อมูลจะปรากฏขึ้นอัตโนมัติเมื่อมีผู้ใช้งานลงทะเบียนเข้ามาครับ")
 
         st.divider()
         st.header("🧠 AI Scheduling Engine (ร่างตารางอัตโนมัติ)")
         
-        # 📌 จัดการ Empty State สำหรับระบบ AI 
         if not df_attending.empty and filter_date != "รวมทุกวัน":
             df_attending['Topic_Clean'] = df_attending['Topic'].astype(str).str.strip()
             df_agenda = df_attending[(df_attending['Topic_Clean'] != "") & (df_attending['Topic_Clean'] != "-") & (df_attending['Topic_Clean'].str.lower() != "nan")].copy()
@@ -393,7 +392,6 @@ with tab2:
                     csv_export = recalculated_df.to_csv(index=False).encode('utf-8-sig')
                     st.download_button("📥 Finalize & Export to Excel", data=csv_export, file_name=f"Schedule_{filter_date}.csv", mime="text/csv", use_container_width=True)
         elif df.empty:
-            # 💡 ถ้าแผ่นงานโล่ง AI จะขึ้นข้อความบอกดีๆ แทนที่จะบั๊ก
             st.info("📌 ระบบ AI Scheduler ยังไม่สามารถทำงานได้ เนื่องจากยังไม่มีข้อมูลวาระการประชุมในฐานข้อมูลครับ")
         elif filter_date == "รวมทุกวัน":
             st.warning("⚠️ กรุณาเลือก 'วันที่' จากตัวกรองด้านบนก่อน เพื่อให้ AI สร้างตารางแบบแยกวันได้อย่างถูกต้องครับ")
