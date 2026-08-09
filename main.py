@@ -261,7 +261,7 @@ with tab2:
             # 📌 อัปเดตโครงสร้าง Database ใส่ Meeting_Dates
             sheet_settings.append_row(["Lunch", "Drink", "Sport", "Sweetness", "Employee_Name"])
             for i in range(max_len):
-                sheet_settings.append_row([list_lunch[i], list_drink[i], list_sport[i], list_sweet[i], list_employee[i], list_dates[i]])
+            sheet_settings.append_row([list_lunch[i], list_drink[i], list_sport[i], list_sweet[i], list_employee[i], list_dates[i]])
                 
             st.success("🎉 อัปเดตข้อมูล Master Data สำเร็จ!")
             st.session_state.draft_lunch = ",".join([x for x in list_lunch if x != ""])
