@@ -316,7 +316,7 @@ with tab2:
                 else:
                     df_agenda['Time_Numeric'] = pd.to_numeric(df_agenda['Time'], errors='coerce').fillna(0)
                     total_requested_time = int(df_agenda['Time_Numeric'].sum())
-                   end_time_mins = 1020 
+                    end_time_mins = 1020 
                     start_time_mins = (input_time.hour * 60) + input_time.minute
                     quota_time = end_time_mins - start_time_mins - 165
                     
