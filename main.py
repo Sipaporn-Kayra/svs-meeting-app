@@ -30,7 +30,7 @@ except Exception as e:
     st.error(f"เกิดข้อผิดพลาดในการเชื่อมต่อระบบ: {e}")
     st.stop()
 
-# 📌 1. กู้คืนระบบ Caching (แก้ปัญหาเว็บโหลดช้า)
+# 📌 ระบบ Caching
 @st.cache_data(ttl=300) 
 def get_cached_settings():
     return sheet_settings.get_all_values()
@@ -49,8 +49,6 @@ if len(settings_data) > 1:
     sport_options = [x for x in df_settings['Sport'].tolist() if x != ""]
     
     sweet_options = [x for x in df_settings['Sweetness'].tolist() if x != ""] if 'Sweetness' in df_settings.columns else ["หวานปกติ (100%)", "หวานน้อย (50%)", "ไม่หวาน (0%)", "หวานมาก (120%)"]
-    
-    # 📌 กู้คืนระบบรายชื่อพนักงาน และวันที่จัดประชุม (MDM)
     employee_options = [x for x in df_settings['Employee_Name'].tolist() if x != ""] if 'Employee_Name' in df_settings.columns else ["Admin", "Kayra"]
     date_options = [x for x in df_settings['Meeting_Dates'].tolist() if x != ""] if 'Meeting_Dates' in df_settings.columns else [datetime.now().strftime("%Y-%m-%d")]
 else:
@@ -107,14 +105,13 @@ with tab1:
     st.header("แบบฟอร์มลงทะเบียนเข้าร่วมประชุม")
     with st.form("register_form"):
         st.subheader("1. ข้อมูลส่วนตัว")
-        # 📌 กู้คืน: ระบบ Dropdown ค้นหารายชื่อพนักงาน
         name = st.selectbox("ชื่อ-นามสกุล (สามารถพิมพ์ค้นหาได้)", employee_options)
         is_attending = st.radio("สถานะการเข้าร่วม", ["เข้าร่วม", "ไม่เข้าร่วม"])
         
-        # 📌 กู้คืน: ระบบจัดงานหลายวัน (Multi-day) พร้อม Sub-form สวัสดิการ
         selected_dates = st.multiselect("📅 เลือกวันที่เข้าร่วมประชุม (เลือกได้หลายวัน)", date_options)
         day_choices = {} 
         
+        # 💡 จุดที่ซ่อนสวัสดิการไว้ จนกว่าจะเลือกวันที่ (Dynamic UI)
         if is_attending == "เข้าร่วม" and len(selected_dates) > 0:
             st.subheader("2. สวัสดิการ (เลือกแยกตามวันได้)")
             for d in selected_dates:
@@ -137,7 +134,6 @@ with tab1:
                         "sport": sport
                     }
         
-        # 📌 กู้คืน: สถาปัตยกรรม 1-to-Many สำหรับระบุวาระหลายหัวข้อ
         st.subheader("3. วาระการประชุม (เสนอได้หลายวาระ)")
         st.info("💡 หากมีมากกว่า 1 วาระ ให้พิมพ์ในตารางด้านล่าง ระบุเวลาแยกกัน และเลือก 'วันที่นำเสนอ' ให้ถูกต้อง")
         
@@ -163,14 +159,12 @@ with tab1:
                 timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                 valid_agendas = user_agendas[user_agendas["หัวข้อการประชุม"].str.strip() != ""]
                 
-                # เช็คหัวตารางให้ครบ
                 if len(sheet_user.get_all_values()) == 0:
                     sheet_user.append_row(["Timestamp", "Name", "Attendance", "Date", "Lunch", "Drink", "Sport", "Topic", "Time"])
                 
                 if is_attending == "ไม่เข้าร่วม":
                     sheet_user.append_row([timestamp, name, "ไม่เข้าร่วม", "-", "-", "-", "-", "-", 0])
                 else:
-                    # วนลูปบันทึกแยกรายวัน และรายวาระ (Denormalization)
                     for d in selected_dates:
                         lunch_str = ", ".join(day_choices[d]["lunch"]) if len(day_choices[d]["lunch"]) > 0 else "ไม่ได้ระบุ"
                         final_drink_str = day_choices[d]["drink"]
@@ -190,15 +184,14 @@ with tab1:
                                     sheet_user.append_row([timestamp, name, "เข้าร่วม", d, lunch_str, final_drink_str, sport_str, topic_val, time_val])
                                     is_first_row = False
                                 else:
-                                    # ซ่อนข้อมูลสวัสดิการด้วย "-" เพื่อไม่ให้กราฟนับเบิ้ล
                                     sheet_user.append_row([timestamp, name, "เข้าร่วม", d, "-", "-", "-", topic_val, time_val])
                                     
                 st.success("บันทึกข้อมูลเรียบร้อย!")
-                get_cached_users.clear() # สั่งเคลียร์ความจำทันทีหลังส่งข้อมูล
+                get_cached_users.clear() 
                 st.balloons()
 
 # ==========================================
-# แท็บที่ 2: แดชบอร์ดแอดมิน + ระบบ AI Vision + AI Scheduling 
+# แท็บที่ 2: แดชบอร์ดแอดมิน
 # ==========================================
 with tab2:
     st.header("📊 หน้าควบคุมและสรุปผลสำหรับแอดมิน")
@@ -210,7 +203,6 @@ with tab2:
         
         st.subheader("🤖 ระบบ AI ช่วยอ่านเมนูอาหาร/เครื่องดื่มจากรูปภาพ")
         upload_col, ai_col = st.columns([1, 1])
-        
         with upload_col:
             img_file = st.file_uploader("อัปโหลดไฟล์รูปเมนูร้านค้า", type=["jpg", "png", "jpeg", "webp"])
             menu_type = st.radio("รูปภาพนี้คือเมนูหมวดไหน?", ["อาหารกลางวัน", "เครื่องดื่ม"])
@@ -219,6 +211,7 @@ with tab2:
                 st.image(image, use_column_width=True)
                 
         with ai_col:
+            st.info("💡 ข้อแนะนำ: เมื่อ AI อ่านเสร็จ ข้อความจะถูกนำไปวางในกล่องตั้งค่าด้านล่างอัตโนมัติ")
             if img_file is not None and st.button("✨ ให้ AI สกัดรายชื่อเมนู", use_container_width=True):
                 with st.spinner("AI กำลังวิเคราะห์รูปภาพ..."):
                     try:
@@ -234,10 +227,8 @@ with tab2:
                         st.error(f"Error: {e}")
         
         st.divider()
-        
         st.subheader("⚙️ ตรวจสอบและตั้งค่า Master Data ประจำรอบ")
         
-        # 📌 กู้คืน: กล่องตั้งค่า Master Data พนักงาน และวันที่
         new_dates_str = st.text_area("📅 วันที่จัดประชุม (คั่นด้วยลูกน้ำ เช่น 27 ส.ค., 28 ส.ค.)", value=",".join(date_options), height=60)
         new_employee_str = st.text_area("👥 รายชื่อพนักงานทั้งหมด", value=",".join(employee_options), height=80)
         
@@ -275,13 +266,14 @@ with tab2:
             
         st.divider()
         
+        # 📌 สถาปัตยกรรมจัดการ "Empty State" อย่างมืออาชีพ
         data = get_cached_users()
-        if data:
-            df = pd.DataFrame(data)
-            
-            # 📌 กู้คืน: ระบบฟิลเตอร์แยกวันสำหรับแอดมิน ป้องกันกราฟผสมกันมั่ว
+        df = pd.DataFrame(data) if data else pd.DataFrame()
+        df_attending = pd.DataFrame()
+        filter_date = "รวมทุกวัน"
+
+        if not df.empty:
             st.markdown("### 🔍 สรุปข้อมูลแยกตามวัน")
-            filter_date = "รวมทุกวัน"
             if 'Date' in df.columns:
                 filter_date = st.selectbox("เลือกวันที่ต้องการดูข้อมูล และสร้างตารางประชุม", ["รวมทุกวัน"] + date_options)
                 if filter_date != "รวมทุกวัน":
@@ -303,104 +295,108 @@ with tab2:
                     
             st.subheader("📋 ตารางรายชื่อและข้อมูลดิบทั้งหมด (Raw Data)")
             st.dataframe(df, use_container_width=True)
+        else:
+            # 💡 ถ้าไม่มีข้อมูลเลย ให้แสดงข้อความแจ้งเตือนที่ชัดเจน แทนที่จะปล่อยจอโล่ง
+            st.info("📌 ยังไม่มีข้อมูลผู้ลงทะเบียนในระบบ (Empty State) แดชบอร์ดสรุปยอดและตารางข้อมูลจะปรากฏขึ้นอัตโนมัติเมื่อมีผู้ใช้งานลงทะเบียนเข้ามาครับ")
+
+        st.divider()
+        st.header("🧠 AI Scheduling Engine (ร่างตารางอัตโนมัติ)")
+        
+        # 📌 จัดการ Empty State สำหรับระบบ AI 
+        if not df_attending.empty and filter_date != "รวมทุกวัน":
+            df_attending['Topic_Clean'] = df_attending['Topic'].astype(str).str.strip()
+            df_agenda = df_attending[(df_attending['Topic_Clean'] != "") & (df_attending['Topic_Clean'] != "-") & (df_attending['Topic_Clean'].str.lower() != "nan")].copy()
             
-            st.divider()
-            st.header("🧠 AI Scheduling Engine (ร่างตารางอัตโนมัติ)")
+            st.markdown(f"#### ⚙️ การตั้งค่าเวลาเริ่มต้นการประชุม (สำหรับ {filter_date})")
+            col_time1, col_time2 = st.columns(2)
+            with col_time1:
+                input_time = st.time_input("เลือกเวลาเริ่มประชุม", value=datetime.strptime("08:30", "%H:%M").time())
             
-            # AI จะคำนวณเฉพาะข้อมูลของวันที่เลือกเท่านั้น
-            if not df_attending.empty and filter_date != "รวมทุกวัน":
-                df_attending['Topic_Clean'] = df_attending['Topic'].astype(str).str.strip()
-                df_agenda = df_attending[(df_attending['Topic_Clean'] != "") & (df_attending['Topic_Clean'] != "-") & (df_attending['Topic_Clean'].str.lower() != "nan")].copy()
+            base_start_dt = datetime.combine(datetime.today(), input_time)
+            opening_end_dt = base_start_dt + timedelta(minutes=45) 
+            
+            start_str = base_start_dt.strftime("%H.%M")
+            opening_end_str = opening_end_dt.strftime("%H.%M")
+            
+            st.info(f"💡 วาระเปิดงาน 45 นาที จะถูกจัดสรรให้อัตโนมัติในช่วง: **{start_str} น. - {opening_end_str} น.**")
+            
+            if df_agenda.empty:
+                st.info("📌 ยังไม่มีวาระการประชุมที่ถูกเสนอเข้ามาในรอบนี้ครับ")
+            else:
+                df_agenda['Time_Numeric'] = pd.to_numeric(df_agenda['Time'], errors='coerce').fillna(0)
+                total_requested_time = int(df_agenda['Time_Numeric'].sum())
                 
-                st.markdown(f"#### ⚙️ การตั้งค่าเวลาเริ่มต้นการประชุม (สำหรับ {filter_date})")
-                col_time1, col_time2 = st.columns(2)
-                with col_time1:
-                    input_time = st.time_input("เลือกเวลาเริ่มประชุม", value=datetime.strptime("08:30", "%H:%M").time())
+                end_time_mins = 1020 
+                start_time_mins = (input_time.hour * 60) + input_time.minute
+                quota_time = end_time_mins - start_time_mins - 165
+                quota_time = 0 if quota_time < 0 else quota_time
                 
-                base_start_dt = datetime.combine(datetime.today(), input_time)
-                opening_end_dt = base_start_dt + timedelta(minutes=45) 
+                st.write(f"⏱️ **เวลาที่ต้องการใช้ทั้งหมด:** {total_requested_time} นาที / โควตาจัดสรร: {quota_time} นาที")
                 
-                start_str = base_start_dt.strftime("%H.%M")
-                opening_end_str = opening_end_dt.strftime("%H.%M")
-                
-                st.info(f"💡 วาระเปิดงาน 45 นาที จะถูกจัดสรรให้อัตโนมัติในช่วง: **{start_str} น. - {opening_end_str} น.**")
-                
-                if df_agenda.empty:
-                    st.info("📌 ยังไม่มีวาระการประชุมที่ถูกเสนอเข้ามาในรอบนี้ครับ")
+                if total_requested_time > quota_time:
+                    st.error(f"⚠️ เวลาเกินโควตาไป {total_requested_time - quota_time} นาที (Over Time)")
+                elif total_requested_time < quota_time:
+                    st.success(f"✅ เวลาอยู่ในโควตา (เหลือเวลา {quota_time - total_requested_time} นาที)")
                 else:
-                    df_agenda['Time_Numeric'] = pd.to_numeric(df_agenda['Time'], errors='coerce').fillna(0)
-                    total_requested_time = int(df_agenda['Time_Numeric'].sum())
-                    
-                    # 📌 โค้ดสุดยอด: สมการคำนวณโควตาจากฐานที่คุณ Kayra วางไว้ (1020 นาที)
-                    end_time_mins = 1020 
-                    start_time_mins = (input_time.hour * 60) + input_time.minute
-                    quota_time = end_time_mins - start_time_mins - 165
-                    quota_time = 0 if quota_time < 0 else quota_time
-                    
-                    st.write(f"⏱️ **เวลาที่ต้องการใช้ทั้งหมด:** {total_requested_time} นาที / โควตาจัดสรร: {quota_time} นาที")
-                    
-                    if total_requested_time > quota_time:
-                        st.error(f"⚠️ เวลาเกินโควตาไป {total_requested_time - quota_time} นาที (Over Time)")
-                    elif total_requested_time < quota_time:
-                        st.success(f"✅ เวลาอยู่ในโควตา (เหลือเวลา {quota_time - total_requested_time} นาที)")
-                    else:
-                        st.success("✅ เวลาพอดีโควตาเป๊ะ!")
+                    st.success("✅ เวลาพอดีโควตาเป๊ะ!")
 
-                    agenda_list_str = "".join([f"- หัวข้อ: {row['Topic_Clean']} (โดย: {row['Name']}, {row['Time_Numeric']} นาที)\n" for idx, row in df_agenda.iterrows()])
-                        
-                    if st.button(f"🪄 ให้ AI ร่างตารางของวันที่ {filter_date}", use_container_width=True):
-                        with st.spinner("🧠 AI กำลังคำนวณ..."):
-                            try:
-                                prompt = f"""
-                                นำรายการวาระต่อไปนี้ไปจัดตาราง:
-                                {agenda_list_str}
-                                
-                                กฎ (Rules):
-                                1. {start_str}-{opening_end_str} น.: เปิดงาน/แจ้งสถานการณ์ (คงที่, ใช้เวลา 45 นาที)
-                                2. 12.00-13.00 น.: พักรับประทานอาหารกลางวัน (คงที่)
-                                3. 16.30-17.00 น.: สรุปงาน/ปิดการประชุม (คงที่)
-                                4. แทรก 'พักเบรก 15 นาที' จำนวน 2 ครั้ง (เช้า 1, บ่าย 1)
-                                5. ห้ามแทรกเบรกตัดกลางวาระใดๆ
-                                
-                                ⚠️ รูปแบบ: ตอบกลับเป็นข้อมูลคั่นด้วย Pipe (|) ห้ามพิมพ์อธิบาย ห้ามใส่ Header
-                                ตัวอย่าง:
-                                08.30-09.15|เปิดงาน/แจ้งสถานการณ์|Admin|45
-                                """
-                                response = vision_model.generate_content(prompt)
-                                raw_text = response.text.strip().replace("```csv", "").replace("```text", "").replace("```", "").strip()
-                                
-                                # 📌 กู้คืน: การป้องกัน AI พิมพ์ขยะติดมา (Defensive Programming)
-                                df_initial = pd.read_csv(io.StringIO(raw_text), sep='|', names=['Time', 'Topic', 'Presenter', 'Duration'], header=None)
-                                if df_initial.iloc[0]['Time'] in ['Time', 'Topic']: df_initial = df_initial.iloc[1:].reset_index(drop=True)
-                                df_initial = df_initial[~df_initial['Time'].astype(str).str.contains('---')].reset_index(drop=True)
-                                
-                                if 'Order' not in df_initial.columns:
-                                    df_initial.insert(0, 'Order', [float(i) for i in range(1, len(df_initial) + 1)])
-                                    
-                                st.session_state.ai_draft_df = recalculate_schedule_times(df_initial, base_start_dt)
-                                st.success("🎉 AI สร้างตารางเสร็จสิ้น!")
-                            except Exception as e:
-                                st.error(f"Error: {e}")
-
-                    if 'ai_draft_df' in st.session_state:
-                        st.markdown("### 📝 ตรวจสอบและแก้ไขตาราง (Admin Editor)")
-                        edited_df = st.data_editor(
-                            st.session_state.ai_draft_df, 
-                            num_rows="dynamic", 
-                            use_container_width=True,
-                            key="schedule_editor_reactive"
-                        )
-                        
-                        recalculated_df = recalculate_schedule_times(edited_df, base_start_dt)
-                        if not recalculated_df.equals(st.session_state.ai_draft_df):
-                            st.session_state.ai_draft_df = recalculated_df
-                            st.rerun()
+                agenda_list_str = "".join([f"- หัวข้อ: {row['Topic_Clean']} (โดย: {row['Name']}, {row['Time_Numeric']} นาที)\n" for idx, row in df_agenda.iterrows()])
+                    
+                if st.button(f"🪄 ให้ AI ร่างตารางของวันที่ {filter_date}", use_container_width=True):
+                    with st.spinner("🧠 AI กำลังคำนวณ..."):
+                        try:
+                            prompt = f"""
+                            นำรายการวาระต่อไปนี้ไปจัดตาราง:
+                            {agenda_list_str}
                             
-                        st.divider()
-                        csv_export = recalculated_df.to_csv(index=False).encode('utf-8-sig')
-                        st.download_button("📥 Finalize & Export to Excel", data=csv_export, file_name=f"Schedule_{filter_date}.csv", mime="text/csv", use_container_width=True)
-            elif filter_date == "รวมทุกวัน":
-                st.warning("⚠️ กรุณาเลือก 'วันที่' จากตัวกรองด้านบนก่อน เพื่อให้ AI สร้างตารางแบบแยกวันได้อย่างถูกต้องครับ")
+                            กฎ (Rules):
+                            1. {start_str}-{opening_end_str} น.: เปิดงาน/แจ้งสถานการณ์ (คงที่, ใช้เวลา 45 นาที)
+                            2. 12.00-13.00 น.: พักรับประทานอาหารกลางวัน (คงที่)
+                            3. 16.30-17.00 น.: สรุปงาน/ปิดการประชุม (คงที่)
+                            4. แทรก 'พักเบรก 15 นาที' จำนวน 2 ครั้ง (เช้า 1, บ่าย 1) ใกล้กึ่งกลางช่วงที่สุด
+                            5. ห้ามแทรกเบรกตัดกลางวาระใดๆ
+                            
+                            ⚠️ รูปแบบ: ตอบกลับเป็นข้อมูลคั่นด้วย Pipe (|) ห้ามพิมพ์อธิบาย ห้ามใส่ Header
+                            ตัวอย่าง:
+                            08.30-09.15|เปิดงาน/แจ้งสถานการณ์|Admin|45
+                            """
+                            response = vision_model.generate_content(prompt)
+                            raw_text = response.text.strip().replace("```csv", "").replace("```text", "").replace("```", "").strip()
+                            
+                            df_initial = pd.read_csv(io.StringIO(raw_text), sep='|', names=['Time', 'Topic', 'Presenter', 'Duration'], header=None)
+                            if df_initial.iloc[0]['Time'] in ['Time', 'Topic']: df_initial = df_initial.iloc[1:].reset_index(drop=True)
+                            df_initial = df_initial[~df_initial['Time'].astype(str).str.contains('---')].reset_index(drop=True)
+                            
+                            if 'Order' not in df_initial.columns:
+                                df_initial.insert(0, 'Order', [float(i) for i in range(1, len(df_initial) + 1)])
+                                
+                            st.session_state.ai_draft_df = recalculate_schedule_times(df_initial, base_start_dt)
+                            st.success("🎉 AI สร้างตารางเสร็จสิ้น!")
+                        except Exception as e:
+                            st.error(f"Error: {e}")
+
+                if 'ai_draft_df' in st.session_state:
+                    st.markdown("### 📝 ตรวจสอบและแก้ไขตาราง (Admin Editor)")
+                    edited_df = st.data_editor(
+                        st.session_state.ai_draft_df, 
+                        num_rows="dynamic", 
+                        use_container_width=True,
+                        key="schedule_editor_reactive"
+                    )
+                    
+                    recalculated_df = recalculate_schedule_times(edited_df, base_start_dt)
+                    if not recalculated_df.equals(st.session_state.ai_draft_df):
+                        st.session_state.ai_draft_df = recalculated_df
+                        st.rerun()
+                        
+                    st.divider()
+                    csv_export = recalculated_df.to_csv(index=False).encode('utf-8-sig')
+                    st.download_button("📥 Finalize & Export to Excel", data=csv_export, file_name=f"Schedule_{filter_date}.csv", mime="text/csv", use_container_width=True)
+        elif df.empty:
+            # 💡 ถ้าแผ่นงานโล่ง AI จะขึ้นข้อความบอกดีๆ แทนที่จะบั๊ก
+            st.info("📌 ระบบ AI Scheduler ยังไม่สามารถทำงานได้ เนื่องจากยังไม่มีข้อมูลวาระการประชุมในฐานข้อมูลครับ")
+        elif filter_date == "รวมทุกวัน":
+            st.warning("⚠️ กรุณาเลือก 'วันที่' จากตัวกรองด้านบนก่อน เพื่อให้ AI สร้างตารางแบบแยกวันได้อย่างถูกต้องครับ")
     else:
         if password_input != "":
             st.error("❌ รหัสผ่านไม่ถูกต้อง!")
