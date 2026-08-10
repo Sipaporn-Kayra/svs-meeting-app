@@ -272,7 +272,7 @@ with tab2:
         if not df.empty:
             st.markdown("### 🔍 สรุปข้อมูลแยกตามวัน")
             if 'Date' in df.columns:
-                filter_date = st.selectbox("เลือกวันที่ต้องการดูข้อมูล และสร้างตารางประชุม", ["รวมทุกวัน"] + date_options)
+                filter_date = st.sidebar.selectbox("📅 เลือกวันที่ (Dashboard Filter)", ["รวมทุกวัน"] + date_options)
                 if filter_date != "รวมทุกวัน": df = df[df['Date'] == filter_date]
             
             df_attending = df[df['Attendance'] == 'เข้าร่วม']
