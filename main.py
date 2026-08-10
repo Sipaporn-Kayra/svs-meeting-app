@@ -253,6 +253,26 @@ with tab2:
         filter_date = "รวมทุกวัน"
 
         if not df.empty:
+            # 🛑 1. วางสถาปัตยกรรม Fail-Fast (Schema Validation) แทรกไว้ตรงนี้!
+            expected_columns = ['Timestamp', 'Name', 'Attendance', 'Date', 'Lunch', 'Drink', 'Sport', 'Topic', 'Time']
+            missing_columns = [col for col in expected_columns if col not in df.columns]
+            
+            if missing_columns:
+                st.error("🚨 **ตรวจพบความผิดปกติของฐานข้อมูล (Schema Mismatch)!**")
+                st.warning(f"**สาเหตุ:** โครงสร้างตารางใน Google Sheets ไม่อัปเดต (ขาดคอลัมน์: `{', '.join(missing_columns)}`) \n\n**🛠️ วิธีแก้ไขด้วยตัวเอง:** \n1. เข้าไปที่ Google Sheets แท็บ `sheet1` \n2. กดลบข้อมูลเก่าทิ้งให้หมด (รวมถึงแถวบนสุดที่เป็นหัวตาราง) \n3. กลับมาที่แอปนี้แล้วลองกด 'ลงทะเบียน' ใหม่อีก 1 ครั้ง ระบบจะสร้างโครงสร้างใหม่ให้ถูกต้องอัตโนมัติครับ")
+                st.stop() # หยุดการทำงานทันที ป้องกันแอปพังลาม
+                
+            # ---------------------------------------------------------
+            # ✅ 2. ถ้าโครงสร้างตารางถูกต้อง (ผ่านด่านบนมาได้) ถึงจะรันโค้ดแสดงผลตามปกติ
+            # ---------------------------------------------------------
+            if 'Date' in df.columns:
+                # 📌 ตัวกรองเด่นหราเตะตา ไม่มีทางหาไม่เจอแน่นอน!
+                filter_date = st.selectbox("📅 กรุณาเลือก 'วันที่' ที่ต้องการดูข้อมูล และสร้างตารางประชุม", ["รวมทุกวัน"] + date_options)
+                if filter_date != "รวมทุกวัน": 
+                    df = df[df['Date'] == filter_date]
+            
+            df_attending = df[df['Attendance'] == 'เข้าร่วม']
+        if not df.empty:
             if 'Date' in df.columns:
                 # 📌 ตัวกรองเด่นหราเตะตา ไม่มีทางหาไม่เจอแน่นอน!
                 filter_date = st.selectbox("📅 กรุณาเลือก 'วันที่' ที่ต้องการดูข้อมูล และสร้างตารางประชุม", ["รวมทุกวัน"] + date_options)
