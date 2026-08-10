@@ -11,7 +11,6 @@ import io
 st.set_page_config(page_title="SVS Meeting Portal", page_icon="🩺", layout="wide")
 st.title("🩺 ระบบจัดการประชุมและสวัสดิการ SVS")
 
-# 2. ตั้งค่าการเชื่อมต่อ
 @st.cache_resource
 def init_connections():
     creds_json = st.secrets["google_credentials"]
@@ -27,7 +26,7 @@ try:
     sheet_user = db.sheet1
     sheet_settings = db.worksheet("Settings")
 except Exception as e:
-    st.error(f"เกิดข้อผิดพลาดในการเชื่อมต่อ: {e}")
+    st.error(f"เกิดข้อผิดพลาดในการเชื่อมต่อระบบ: {e}")
     st.stop()
 
 @st.cache_data(ttl=300) 
@@ -38,21 +37,18 @@ def get_cached_settings():
 def get_cached_users():
     return sheet_user.get_all_records()
 
-# 📌 3. สถาปัตยกรรมใหม่: อ่านข้อมูลแบบ Key-Value Store (NoSQL Concept)
-raw_settings = get_cached_settings()
+settings_data = get_cached_settings()
 settings_dict = {}
-if len(raw_settings) > 1:
-    for row in raw_settings[1:]:
+if len(settings_data) > 1:
+    for row in settings_data[1:]:
         if len(row) >= 2:
             settings_dict[row[0]] = row[1]
 
-# ดึงค่า Global Variables (ค่าที่ใช้ร่วมกันทุกวัน)
 date_options = [x.strip() for x in settings_dict.get("Global_Dates", datetime.now().strftime("%Y-%m-%d")).split(",") if x.strip()]
 employee_options = [x.strip() for x in settings_dict.get("Global_Employees", "Admin,Kayra").split(",") if x.strip()]
 sport_options = [x.strip() for x in settings_dict.get("Global_Sport", "บาส,บอล,ไม่เข้าร่วม").split(",") if x.strip()]
 sweet_options = [x.strip() for x in settings_dict.get("Global_Sweetness", "หวานปกติ (100%),หวานน้อย (50%),ไม่หวาน (0%),หวานมาก (120%)").split(",") if x.strip()]
 
-# 🕒 ฟังก์ชันอัจฉริยะ: คำนวณเวลาเริ่ม-เวลาจบอัตโนมัติ
 def recalculate_schedule_times(df, base_start_dt):
     df_clean = df.copy()
     if 'Order' in df_clean.columns:
@@ -90,7 +86,6 @@ tab1, tab2 = st.tabs(["📝 ฟอร์มลงทะเบียน (User)", 
 # ==========================================
 with tab1:
     st.header("แบบฟอร์มลงทะเบียนเข้าร่วมประชุม")
-    
     st.subheader("1. ข้อมูลส่วนตัว")
     name = st.selectbox("ชื่อ-นามสกุล (สามารถพิมพ์ค้นหาได้)", employee_options)
     is_attending = st.radio("สถานะการเข้าร่วม", ["เข้าร่วม", "ไม่เข้าร่วม"])
@@ -100,12 +95,8 @@ with tab1:
     
     if is_attending == "เข้าร่วม" and len(selected_dates) > 0:
         st.subheader("2. สวัสดิการ (เลือกแยกตามวันได้)")
-        
-        # 📌 Dynamic Sub-forms: ดึงเมนูเฉพาะวันที่ถูกเลือกมาจาก Dictionary (Key-Value)
         for d in selected_dates:
             with st.expander(f"🍽️ กำหนดสวัสดิการสำหรับวันที่: {d}", expanded=True):
-                
-                # ดึงเมนูของวันนั้นๆ ถ้าไม่มีให้ขึ้นค่า Default
                 day_lunch_raw = settings_dict.get(f"Lunch_{d}", "")
                 day_drink_raw = settings_dict.get(f"Drink_{d}", "")
                 day_lunch_options = [x.strip() for x in day_lunch_raw.split(",") if x.strip()] if day_lunch_raw else ["ไม่มีเมนู (กรุณาแจ้งแอดมิน)"]
@@ -190,79 +181,71 @@ with tab2:
         st.success("🔓 เข้าสู่ระบบหลังบ้านสำเร็จ")
         st.divider()
         
-        st.subheader("🤖 ระบบ AI ช่วยอ่านเมนูอาหาร/เครื่องดื่มจากรูปภาพ")
-        if 'ai_draft' not in st.session_state: st.session_state.ai_draft = ""
+        # 📌 UX UPGRADE: นำส่วน AI และตั้งค่าไป "พับเก็บ" ไว้ใน st.expander เพื่อประหยัดพื้นที่จอ
+        with st.expander("🤖 แผงผู้ช่วย AI อ่านเมนูอาหาร/เครื่องดื่มจากรูปภาพ", expanded=False):
+            if 'ai_draft' not in st.session_state: st.session_state.ai_draft = ""
+            upload_col, ai_col = st.columns([1, 1])
+            with upload_col:
+                img_file = st.file_uploader("อัปโหลดไฟล์รูปเมนูร้านค้า", type=["jpg", "png", "jpeg", "webp"])
+                if img_file is not None:
+                    image = Image.open(img_file)
+                    st.image(image, use_column_width=True)
+            with ai_col:
+                st.info("💡 นำข้อความในกล่องนี้ ไปก๊อปปี้วางในช่องเมนูอาหารด้านล่างได้เลยครับ")
+                st.text_area("📋 กล่องพักข้อความจาก AI (Draft Box)", value=st.session_state.ai_draft, height=100)
+                if img_file is not None and st.button("✨ ให้ AI สกัดรายชื่อเมนู", use_container_width=True):
+                    with st.spinner("AI กำลังวิเคราะห์รูปภาพ..."):
+                        try:
+                            ai_prompt = "อ่านเมนูและดึงเฉพาะชื่อเมนู คั่นด้วยเครื่องหมายจุลภาค (,) เท่านั้น"
+                            response = vision_model.generate_content([ai_prompt, image])
+                            st.session_state.ai_draft = response.text.strip()
+                            st.rerun() 
+                        except Exception as e:
+                            st.error(f"Error: {e}")
         
-        upload_col, ai_col = st.columns([1, 1])
-        with upload_col:
-            img_file = st.file_uploader("อัปโหลดไฟล์รูปเมนูร้านค้า", type=["jpg", "png", "jpeg", "webp"])
-            if img_file is not None:
-                image = Image.open(img_file)
-                st.image(image, use_column_width=True)
-                
-        with ai_col:
-            # 📌 อัปเกรด AI: ให้สกัดเข้า "กล่องพักข้อความ (Draft Box)" เพื่อให้แอดมินก๊อปปี้ไปวางแยกตามวันได้ง่ายๆ
-            st.info("💡 นำข้อความในกล่องนี้ ไปก๊อปปี้วางในช่องเมนูอาหารของแต่ละวันด้านล่างได้เลยครับ")
-            st.text_area("📋 กล่องพักข้อความจาก AI (Draft Box)", value=st.session_state.ai_draft, height=100)
+        with st.expander("⚙️ ตรวจสอบและตั้งค่า Master Data ประจำรอบ", expanded=False):
+            new_dates_str = st.text_input("📅 วันที่จัดประชุม (คั่นด้วยลูกน้ำ เช่น 2026-08-27,2026-08-28)", value=",".join(date_options))
+            new_employee_str = st.text_area("👥 รายชื่อพนักงานทั้งหมด", value=",".join(employee_options), height=60)
             
-            if img_file is not None and st.button("✨ ให้ AI สกัดรายชื่อเมนู", use_container_width=True):
-                with st.spinner("AI กำลังวิเคราะห์รูปภาพ..."):
-                    try:
-                        ai_prompt = "อ่านเมนูและดึงเฉพาะชื่อเมนู คั่นด้วยเครื่องหมายจุลภาค (,) เท่านั้น"
-                        response = vision_model.generate_content([ai_prompt, image])
-                        st.session_state.ai_draft = response.text.strip()
-                        st.rerun() 
-                    except Exception as e:
-                        st.error(f"Error: {e}")
-        
-        st.divider()
-        st.subheader("⚙️ ตรวจสอบและตั้งค่า Master Data ประจำรอบ")
-        
-        # 📌 ส่วนตั้งค่า Global (ใช้ร่วมกันทุกวัน)
-        new_dates_str = st.text_input("📅 วันที่จัดประชุม (คั่นด้วยลูกน้ำ เช่น 2026-08-27,2026-08-28)", value=",".join(date_options))
-        new_employee_str = st.text_area("👥 รายชื่อพนักงานทั้งหมด", value=",".join(employee_options), height=60)
-        
-        config_row_g1, config_row_g2 = st.columns(2)
-        with config_row_g1: new_sport_str = st.text_area("รายการกิจกรรมกีฬา (Global)", value=",".join(sport_options), height=60)
-        with config_row_g2: new_sweet_str = st.text_area("ระดับความหวาน (Global)", value=",".join(sweet_options), height=60)
-        
-        st.markdown("#### 🍽️ ตั้งค่าเมนูอาหารแยกตามวัน (Daily Dynamic Menus)")
-        date_list_live = [x.strip() for x in new_dates_str.split(",") if x.strip()]
-        
-        # 📌 สถาปัตยกรรม Dynamic Tabs: สร้างหน้าต่างตั้งค่าเมนูแยกตามวันให้อัตโนมัติ!
-        daily_menu_inputs = {}
-        if date_list_live:
-            tabs = st.tabs(date_list_live)
-            for i, d in enumerate(date_list_live):
-                with tabs[i]:
-                    col1, col2 = st.columns(2)
-                    with col1:
-                        l_val = settings_dict.get(f"Lunch_{d}", "")
-                        daily_menu_inputs[f"Lunch_{d}"] = st.text_area(f"อาหารกลางวัน ({d})", value=l_val, key=f"admin_l_{d}", height=100)
-                    with col2:
-                        d_val = settings_dict.get(f"Drink_{d}", "")
-                        daily_menu_inputs[f"Drink_{d}"] = st.text_area(f"เครื่องดื่ม ({d})", value=d_val, key=f"admin_d_{d}", height=100)
-        else:
-            st.warning("กรุณาใส่วันที่จัดประชุมด้านบน เพื่อให้ระบบสร้างช่องใส่เมนูอาหารครับ")
+            config_row_g1, config_row_g2 = st.columns(2)
+            with config_row_g1: new_sport_str = st.text_area("รายการกิจกรรมกีฬา (Global)", value=",".join(sport_options), height=60)
+            with config_row_g2: new_sweet_str = st.text_area("ระดับความหวาน (Global)", value=",".join(sweet_options), height=60)
+            
+            st.markdown("#### 🍽️ ตั้งค่าเมนูอาหารแยกตามวัน")
+            date_list_live = [x.strip() for x in new_dates_str.split(",") if x.strip()]
+            daily_menu_inputs = {}
+            if date_list_live:
+                tabs = st.tabs(date_list_live)
+                for i, d in enumerate(date_list_live):
+                    with tabs[i]:
+                        col1, col2 = st.columns(2)
+                        with col1:
+                            l_val = settings_dict.get(f"Lunch_{d}", "")
+                            daily_menu_inputs[f"Lunch_{d}"] = st.text_area(f"อาหารกลางวัน ({d})", value=l_val, key=f"admin_l_{d}", height=100)
+                        with col2:
+                            d_val = settings_dict.get(f"Drink_{d}", "")
+                            daily_menu_inputs[f"Drink_{d}"] = st.text_area(f"เครื่องดื่ม ({d})", value=d_val, key=f"admin_d_{d}", height=100)
+            
+            if st.button("💾 Save & Publish เปิดฟอร์มรอบใหม่", type="primary"):
+                sheet_settings.clear()
+                sheet_settings.append_row(["Key", "Value"])
+                sheet_settings.append_row(["Global_Dates", new_dates_str])
+                sheet_settings.append_row(["Global_Employees", new_employee_str])
+                sheet_settings.append_row(["Global_Sport", new_sport_str])
+                sheet_settings.append_row(["Global_Sweetness", new_sweet_str])
+                
+                for key, val in daily_menu_inputs.items():
+                    cleaned_val = ",".join([x.strip() for x in val.split(",") if x.strip()])
+                    sheet_settings.append_row([key, cleaned_val])
+                    
+                st.success("🎉 อัปเดตข้อมูล Master Data สำเร็จ!")
+                get_cached_settings.clear()
+                st.rerun()
 
-        if st.button("💾 Save & Publish เปิดฟอร์มรอบใหม่", type="primary"):
-            sheet_settings.clear()
-            # 📌 Data Migration: เปลี่ยนมาใช้โครงสร้าง Key-Value Store เต็มรูปแบบ!
-            sheet_settings.append_row(["Key", "Value"])
-            sheet_settings.append_row(["Global_Dates", new_dates_str])
-            sheet_settings.append_row(["Global_Employees", new_employee_str])
-            sheet_settings.append_row(["Global_Sport", new_sport_str])
-            sheet_settings.append_row(["Global_Sweetness", new_sweet_str])
-            
-            for key, val in daily_menu_inputs.items():
-                cleaned_val = ",".join([x.strip() for x in val.split(",") if x.strip()])
-                sheet_settings.append_row([key, cleaned_val])
-                
-            st.success("🎉 อัปเดตข้อมูล Master Data แบบแยกวันสำเร็จ!")
-            get_cached_settings.clear()
-            st.rerun()
-            
         st.divider()
+        
+        # 📌 ไฮไลท์การแก้ปัญหา: กล่องตัวกรองจะดันขึ้นมาอยู่ "ตรงกลางจอ มองเห็นทันที" ทันทีที่ล็อกอิน!
+        st.markdown("### 🔍 แผงควบคุมและสรุปข้อมูล (Main Control Panel)")
         
         data = get_cached_users()
         df = pd.DataFrame(data) if data else pd.DataFrame()
@@ -270,9 +253,9 @@ with tab2:
         filter_date = "รวมทุกวัน"
 
         if not df.empty:
-            st.markdown("### 🔍 สรุปข้อมูลแยกตามวัน")
             if 'Date' in df.columns:
-                filter_date = st.sidebar.selectbox("📅 เลือกวันที่ (Dashboard Filter)", ["รวมทุกวัน"] + date_options)
+                # 📌 ตัวกรองเด่นหราเตะตา ไม่มีทางหาไม่เจอแน่นอน!
+                filter_date = st.selectbox("📅 กรุณาเลือก 'วันที่' ที่ต้องการดูข้อมูล และสร้างตารางประชุม", ["รวมทุกวัน"] + date_options)
                 if filter_date != "รวมทุกวัน": df = df[df['Date'] == filter_date]
             
             df_attending = df[df['Attendance'] == 'เข้าร่วม']
