@@ -274,9 +274,12 @@ with tab2:
             df_attending = df[df['Attendance'] == 'เข้าร่วม']
         if not df.empty:
             if 'Date' in df.columns:
-                # 📌 ตัวกรองเด่นหราเตะตา ไม่มีทางหาไม่เจอแน่นอน!
-                filter_date = st.selectbox("📅 กรุณาเลือก 'วันที่' ที่ต้องการดูข้อมูล และสร้างตารางประชุม", ["รวมทุกวัน"] + date_options)
-                if filter_date != "รวมทุกวัน": df = df[df['Date'] == filter_date]
+                # 📌 The Fix: ยัดบัตรประชาชน (key) ให้กับ Dropdown ป้องกันการชนกัน 100%
+                filter_date = st.selectbox(
+                    "📅 กรุณาเลือก 'วันที่' ที่ต้องการดูข้อมูล และสร้างตารางประชุม", 
+                    ["รวมทุกวัน"] + date_options,
+                    key="admin_main_date_filter_unique_id"
+                )
             
             df_attending = df[df['Attendance'] == 'เข้าร่วม']
             
