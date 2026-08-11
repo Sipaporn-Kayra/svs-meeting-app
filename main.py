@@ -86,51 +86,58 @@ tab1, tab2 = st.tabs(["📝 ฟอร์มลงทะเบียน (User)", 
 # ==========================================
 with tab1:
     st.header("แบบฟอร์มลงทะเบียนเข้าร่วมประชุม")
-    st.subheader("1. ข้อมูลส่วนตัว")
-    name = st.selectbox("ชื่อ-นามสกุล (สามารถพิมพ์ค้นหาได้)", employee_options)
-    is_attending = st.radio("สถานะการเข้าร่วม", ["เข้าร่วม", "ไม่เข้าร่วม"])
     
-    selected_dates = st.multiselect("📅 เลือกวันที่เข้าร่วมประชุม (เลือกได้หลายวัน)", date_options)
+    # 🎨 UI Upgrade: ใช้กล่อง Container ครอบหัวข้อที่ 1
+    with st.container(border=True):
+        st.subheader("👤 1. ข้อมูลส่วนตัว")
+        name = st.selectbox("ชื่อ-นามสกุล (สามารถพิมพ์ค้นหาได้)", employee_options)
+        is_attending = st.radio("สถานะการเข้าร่วม", ["เข้าร่วม", "ไม่เข้าร่วม"])
+        selected_dates = st.multiselect("📅 เลือกวันที่เข้าร่วมประชุม (เลือกได้หลายวัน)", date_options)
+        
     day_choices = {} 
     
     if is_attending == "เข้าร่วม" and len(selected_dates) > 0:
-        st.subheader("2. สวัสดิการ (เลือกแยกตามวันได้)")
-        for d in selected_dates:
-            with st.expander(f"🍽️ กำหนดสวัสดิการสำหรับวันที่: {d}", expanded=True):
-                day_lunch_raw = settings_dict.get(f"Lunch_{d}", "")
-                day_drink_raw = settings_dict.get(f"Drink_{d}", "")
-                day_lunch_options = [x.strip() for x in day_lunch_raw.split(",") if x.strip()] if day_lunch_raw else ["ไม่มีเมนู (กรุณาแจ้งแอดมิน)"]
-                day_drink_options = [x.strip() for x in day_drink_raw.split(",") if x.strip()] if day_drink_raw else ["ไม่มีเมนู (กรุณาแจ้งแอดมิน)"]
-                
-                lunch = st.multiselect(f"เมนูอาหารกลางวัน ({d})", day_lunch_options, key=f"lunch_{d}")
-                
-                drink_col1, drink_col2 = st.columns(2)
-                with drink_col1:
-                    drink_base = st.selectbox("เมนูหลัก", day_drink_options, key=f"drink_{d}")
-                    drink_roast = st.selectbox("เมล็ดกาแฟ", ["ไม่ระบุ", "คั่วอ่อน", "คั่วกลาง", "คั่วเข้ม"], key=f"roast_{d}")
-                with drink_col2:
-                    drink_temp = st.selectbox("รูปแบบ", ["เย็น", "ร้อน", "ปั่น"], key=f"temp_{d}")
-                    drink_sweet = st.selectbox("ระดับความหวาน", sweet_options, key=f"sweet_{d}")
-                
-                sport = st.selectbox(f"กิจกรรมกีฬา ({d})", sport_options, key=f"sport_{d}")
-                
-                day_choices[d] = {
-                    "lunch": lunch,
-                    "drink": f"{drink_base} ({drink_temp}{', '+drink_roast if drink_roast != 'ไม่ระบุ' else ''}, {drink_sweet})",
-                    "sport": sport
-                }
+        # 🎨 UI Upgrade: ใช้กล่อง Container ครอบหัวข้อที่ 2 (สวัสดิการ)
+        with st.container(border=True):
+            st.subheader("🍽️ 2. สวัสดิการ (เลือกแยกตามวันได้)")
+            for d in selected_dates:
+                with st.expander(f"เมนูสวัสดิการสำหรับวันที่: {d}", expanded=True):
+                    day_lunch_raw = settings_dict.get(f"Lunch_{d}", "")
+                    day_drink_raw = settings_dict.get(f"Drink_{d}", "")
+                    day_lunch_options = [x.strip() for x in day_lunch_raw.split(",") if x.strip()] if day_lunch_raw else ["ไม่มีเมนู (กรุณาแจ้งแอดมิน)"]
+                    day_drink_options = [x.strip() for x in day_drink_raw.split(",") if x.strip()] if day_drink_raw else ["ไม่มีเมนู (กรุณาแจ้งแอดมิน)"]
+                    
+                    lunch = st.multiselect(f"เมนูอาหารกลางวัน ({d})", day_lunch_options, key=f"lunch_{d}")
+                    
+                    drink_col1, drink_col2 = st.columns(2)
+                    with drink_col1:
+                        drink_base = st.selectbox("เมนูหลัก", day_drink_options, key=f"drink_{d}")
+                        drink_roast = st.selectbox("เมล็ดกาแฟ", ["ไม่ระบุ", "คั่วอ่อน", "คั่วกลาง", "คั่วเข้ม"], key=f"roast_{d}")
+                    with drink_col2:
+                        drink_temp = st.selectbox("รูปแบบ", ["เย็น", "ร้อน", "ปั่น"], key=f"temp_{d}")
+                        drink_sweet = st.selectbox("ระดับความหวาน", sweet_options, key=f"sweet_{d}")
+                    
+                    sport = st.selectbox(f"กิจกรรมกีฬา ({d})", sport_options, key=f"sport_{d}")
+                    
+                    day_choices[d] = {
+                        "lunch": lunch,
+                        "drink": f"{drink_base} ({drink_temp}{', '+drink_roast if drink_roast != 'ไม่ระบุ' else ''}, {drink_sweet})",
+                        "sport": sport
+                    }
     
-    st.subheader("3. วาระการประชุม (เสนอได้หลายวาระ)")
-    st.info("💡 หากมีมากกว่า 1 วาระ ให้พิมพ์ในตารางด้านล่าง ระบุเวลาแยกกัน และเลือก 'วันที่นำเสนอ' ให้ถูกต้อง")
-    
-    default_agenda = pd.DataFrame([{"วันที่นำเสนอ": date_options[0] if date_options else "", "หัวข้อการประชุม": "", "เวลาที่ใช้ (นาที)": 0}])
-    user_agendas = st.data_editor(
-        default_agenda, 
-        num_rows="dynamic", 
-        use_container_width=True,
-        hide_index=True,
-        column_config={"วันที่นำเสนอ": st.column_config.SelectboxColumn("วันที่นำเสนอ", options=date_options, required=True)}
-    )
+    # 🎨 UI Upgrade: ใช้กล่อง Container ครอบหัวข้อที่ 3 (วาระการประชุม)
+    with st.container(border=True):
+        st.subheader("📋 3. วาระการประชุม (เสนอได้หลายวาระ)")
+        st.info("💡 หากมีมากกว่า 1 วาระ ให้พิมพ์ในตารางด้านล่าง ระบุเวลาแยกกัน และเลือก 'วันที่นำเสนอ' ให้ถูกต้อง")
+        
+        default_agenda = pd.DataFrame([{"วันที่นำเสนอ": date_options[0] if date_options else "", "หัวข้อการประชุม": "", "เวลาที่ใช้ (นาที)": 0}])
+        user_agendas = st.data_editor(
+            default_agenda, 
+            num_rows="dynamic", 
+            use_container_width=True,
+            hide_index=True,
+            column_config={"วันที่นำเสนอ": st.column_config.SelectboxColumn("วันที่นำเสนอ", options=date_options, required=True)}
+        )
     
     submitted = st.button("ส่งข้อมูลลงทะเบียน", type="primary", use_container_width=True)
     
@@ -181,7 +188,6 @@ with tab2:
         st.success("🔓 เข้าสู่ระบบหลังบ้านสำเร็จ")
         st.divider()
         
-        # 📌 UX UPGRADE: นำส่วน AI และตั้งค่าไป "พับเก็บ" ไว้ใน st.expander เพื่อประหยัดพื้นที่จอ
         with st.expander("🤖 แผงผู้ช่วย AI อ่านเมนูอาหาร/เครื่องดื่มจากรูปภาพ", expanded=False):
             if 'ai_draft' not in st.session_state: st.session_state.ai_draft = ""
             upload_col, ai_col = st.columns([1, 1])
@@ -203,7 +209,7 @@ with tab2:
                         except Exception as e:
                             st.error(f"Error: {e}")
         
-        with st.expander("⚙️ ตรวจสอบและตั้งค่าอาหาร เครื่องดื่ม กีฬาประจำรอบ", expanded=False):
+        with st.expander("⚙️ ตรวจสอบและตั้งค่า Master Data ประจำรอบ", expanded=False):
             new_dates_str = st.text_input("📅 วันที่จัดประชุม (คั่นด้วยลูกน้ำ เช่น 2026-08-27,2026-08-28)", value=",".join(date_options))
             new_employee_str = st.text_area("👥 รายชื่อพนักงานทั้งหมด", value=",".join(employee_options), height=60)
             
@@ -243,9 +249,7 @@ with tab2:
                 st.rerun()
 
         st.divider()
-        
-        # 📌 ไฮไลท์การแก้ปัญหา: กล่องตัวกรองจะดันขึ้นมาอยู่ "ตรงกลางจอ มองเห็นทันที" ทันทีที่ล็อกอิน!
-        st.markdown("### 🔍 เลือกวันประชุม, กราฟอาหารและเครื่องดื่ม")
+        st.markdown("### 🔍 แผงควบคุมและสรุปข้อมูล (Main Control Panel)")
         
         data = get_cached_users()
         df = pd.DataFrame(data) if data else pd.DataFrame()
@@ -253,29 +257,42 @@ with tab2:
         filter_date = "รวมทุกวัน"
 
         if not df.empty:
-            # 🛑 1. สถาปัตยกรรม Fail-Fast (Schema Validation)
             expected_columns = ['Timestamp', 'Name', 'Attendance', 'Date', 'Lunch', 'Drink', 'Sport', 'Topic', 'Time']
             missing_columns = [col for col in expected_columns if col not in df.columns]
             
             if missing_columns:
                 st.error("🚨 **ตรวจพบความผิดปกติของฐานข้อมูล (Schema Mismatch)!**")
                 st.warning(f"**สาเหตุ:** โครงสร้างตารางใน Google Sheets ไม่อัปเดต (ขาดคอลัมน์: `{', '.join(missing_columns)}`) \n\n**🛠️ วิธีแก้ไขด้วยตัวเอง:** \n1. เข้าไปที่ Google Sheets แท็บ `sheet1` \n2. กดลบข้อมูลเก่าทิ้งให้หมด (รวมถึงแถวบนสุดที่เป็นหัวตาราง) \n3. กลับมาที่แอปนี้แล้วลองกด 'ลงทะเบียน' ใหม่อีก 1 ครั้ง ระบบจะสร้างโครงสร้างใหม่ให้ถูกต้องอัตโนมัติครับ")
-                st.stop() # หยุดการทำงานทันที ป้องกันแอปพังลาม
+                st.stop()
                 
-            # ---------------------------------------------------------
-            # ✅ 2. สร้างกล่อง Dropdown สำหรับกรองวันที่ (เหลือแค่กล่องเดียวเป๊ะๆ!)
-            # ---------------------------------------------------------
             if 'Date' in df.columns:
-                filter_date = st.selectbox(
-                    "📅 กรุณาเลือก 'วันที่' ที่ต้องการดูข้อมูล และสร้างตารางประชุม", 
-                    ["รวมทุกวัน"] + date_options,
-                    key="admin_main_date_filter_unique_id"
-                )
-                if filter_date != "รวมทุกวัน": 
-                    df = df[df['Date'] == filter_date]
+                filter_date = st.selectbox("📅 กรุณาเลือก 'วันที่' ที่ต้องการดูข้อมูล และสร้างตารางประชุม", ["รวมทุกวัน"] + date_options, key="admin_main_date_filter_unique_id")
+                if filter_date != "รวมทุกวัน": df = df[df['Date'] == filter_date]
             
             df_attending = df[df['Attendance'] == 'เข้าร่วม']
             
+            # 📊 KPI Dashboard Upgrade: คำนวณสรุปข้อมูลแบบ Real-time ก่อนโชว์กราฟ
+            if not df_attending.empty:
+                st.markdown("#### 📈 Executive Summary (ภาพรวม)")
+                
+                total_people = len(df_attending['Name'].unique()) # นับจำนวนคนแบบไม่ซ้ำ
+                
+                lunch_series_kpi = df_attending['Lunch'].astype(str).str.split(', ').explode()
+                total_lunch = len(lunch_series_kpi[~lunch_series_kpi.isin(["ไม่ได้ระบุ", "ไม่มีเมนู (กรุณาแจ้งแอดมิน)", "-"])])
+                
+                agenda_kpi = df_attending[(df_attending['Topic'].astype(str).str.strip() != "") & (df_attending['Topic'].astype(str).str.strip() != "-")].copy()
+                agenda_kpi['Time_Numeric'] = pd.to_numeric(agenda_kpi['Time'], errors='coerce').fillna(0)
+                total_agenda_time = int(agenda_kpi['Time_Numeric'].sum())
+                
+                col_kpi1, col_kpi2, col_kpi3 = st.columns(3)
+                with st.container(border=True):
+                    col_kpi1.metric("👥 ยืนยันเข้าร่วม", f"{total_people} คน")
+                with st.container(border=True):
+                    col_kpi2.metric("🍱 จำนวนข้าวกล่อง", f"{total_lunch} กล่อง")
+                with st.container(border=True):
+                    col_kpi3.metric("⏱️ เวลาพรีเซนต์รวม", f"{total_agenda_time} นาที")
+            
+            st.divider()
             st.subheader("🍔 ยอดสรุปการสั่งอาหารและเครื่องดื่ม")
             if not df_attending.empty:
                 chart_col1, chart_col2 = st.columns(2)
@@ -308,6 +325,8 @@ with tab2:
             base_start_dt = datetime.combine(datetime.today(), input_time)
             opening_end_dt = base_start_dt + timedelta(minutes=45) 
             start_str, opening_end_str = base_start_dt.strftime("%H.%M"), opening_end_dt.strftime("%H.%M")
+            
+            st.info(f"💡 วาระเปิดงาน 45 นาที จะถูกจัดสรรให้อัตโนมัติในช่วง: **{start_str} น. - {opening_end_str} น.**")
             
             if df_agenda.empty:
                 st.info("📌 ยังไม่มีวาระการประชุมที่ถูกเสนอเข้ามาในรอบนี้ครับ")
@@ -363,7 +382,7 @@ with tab2:
                     csv_export = recalculated_df.to_csv(index=False).encode('utf-8-sig')
                     st.download_button("📥 Finalize & Export to Excel", data=csv_export, file_name=f"Schedule_{filter_date}.csv", mime="text/csv", use_container_width=True)
         elif df.empty:
-            st.info("📌 ระบบ AI Scheduler ยังไม่สามารถทำงานได้ เนื่องจากยังไม่มีข้อมูลวาระการประชุมในฐานข้อมูลครับ")
+            pass # ซ่อนข้อความเตือน AI ถ้าไม่มีข้อมูล เพราะแจ้งไว้ด้านบนแล้ว
         elif filter_date == "รวมทุกวัน":
             st.warning("⚠️ กรุณาเลือก 'วันที่' จากตัวกรองด้านบนก่อน เพื่อให้ AI สร้างตารางแบบแยกวันได้อย่างถูกต้องครับ")
     else:
