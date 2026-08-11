@@ -49,6 +49,10 @@ employee_options = [x.strip() for x in settings_dict.get("Global_Employees", "Ad
 sport_options = [x.strip() for x in settings_dict.get("Global_Sport", "บาส,บอล,ไม่เข้าร่วม").split(",") if x.strip()]
 sweet_options = [x.strip() for x in settings_dict.get("Global_Sweetness", "หวานปกติ (100%),หวานน้อย (50%),ไม่หวาน (0%),หวานมาก (120%)").split(",") if x.strip()]
 
+# ---------------------------------------------------------
+# 🧱 คลังอาวุธ (Component & Function Library)
+# ---------------------------------------------------------
+
 def recalculate_schedule_times(df, base_start_dt):
     df_clean = df.copy()
     if 'Order' in df_clean.columns:
@@ -79,6 +83,16 @@ def recalculate_schedule_times(df, base_start_dt):
     except: pass
     return df_clean
 
+# 📌 ประกาศ Component kpi_card ไว้ที่นี่! เพื่อให้ทุก Tab เรียกใช้ได้
+def kpi_card(title, value, delta_text=None, delta_color="normal"):
+    """บล็อกเลโก้สำหรับสร้าง KPI Card รองรับการเปลี่ยนสีตัวเลข (Dynamic Styling)"""
+    with st.container(border=True):
+        st.metric(label=title, value=value, delta=delta_text, delta_color=delta_color)
+
+# ---------------------------------------------------------
+# 🏗️ สมรภูมิรบ (UI Rendering)
+# ---------------------------------------------------------
+
 tab1, tab2 = st.tabs(["📝 ฟอร์มลงทะเบียน (User)", "📊 แดชบอร์ดแอดมิน (Admin)"])
 
 # ==========================================
@@ -86,8 +100,6 @@ tab1, tab2 = st.tabs(["📝 ฟอร์มลงทะเบียน (User)", 
 # ==========================================
 with tab1:
     st.header("แบบฟอร์มลงทะเบียนเข้าร่วมประชุม")
-    
-    # 🎨 UI Upgrade: ใช้กล่อง Container ครอบหัวข้อที่ 1
     with st.container(border=True):
         st.subheader("👤 1. ข้อมูลส่วนตัว")
         name = st.selectbox("ชื่อ-นามสกุล (สามารถพิมพ์ค้นหาได้)", employee_options)
@@ -97,7 +109,6 @@ with tab1:
     day_choices = {} 
     
     if is_attending == "เข้าร่วม" and len(selected_dates) > 0:
-        # 🎨 UI Upgrade: ใช้กล่อง Container ครอบหัวข้อที่ 2 (สวัสดิการ)
         with st.container(border=True):
             st.subheader("🍽️ 2. สวัสดิการ (เลือกแยกตามวันได้)")
             for d in selected_dates:
@@ -125,7 +136,6 @@ with tab1:
                         "sport": sport
                     }
     
-    # 🎨 UI Upgrade: ใช้กล่อง Container ครอบหัวข้อที่ 3 (วาระการประชุม)
     with st.container(border=True):
         st.subheader("📋 3. วาระการประชุม (เสนอได้หลายวาระ)")
         st.info("💡 หากมีมากกว่า 1 วาระ ให้พิมพ์ในตารางด้านล่าง ระบุเวลาแยกกัน และเลือก 'วันที่นำเสนอ' ให้ถูกต้อง")
@@ -271,33 +281,28 @@ with tab2:
             
             df_attending = df[df['Attendance'] == 'เข้าร่วม']
             
-            # 📊 KPI Dashboard Upgrade: คำนวณสรุปข้อมูลแบบ Real-time ก่อนโชว์กราฟ
+            # ---------------------------------------------------------
+            # 📌 เรียกใช้ Component kpi_card ตรงนี้! (โค้ดคลีนและอ่านง่ายสุดๆ)
+            # ---------------------------------------------------------
             if not df_attending.empty:
                 st.markdown("#### 📈 Executive Summary (ภาพรวม)")
                 
-                total_people = len(df_attending['Name'].unique()) # นับจำนวนคนแบบไม่ซ้ำ
-                
+                total_people = len(df_attending['Name'].unique())
                 lunch_series_kpi = df_attending['Lunch'].astype(str).str.split(', ').explode()
                 total_lunch = len(lunch_series_kpi[~lunch_series_kpi.isin(["ไม่ได้ระบุ", "ไม่มีเมนู (กรุณาแจ้งแอดมิน)", "-"])])
-                
                 agenda_kpi = df_attending[(df_attending['Topic'].astype(str).str.strip() != "") & (df_attending['Topic'].astype(str).str.strip() != "-")].copy()
                 agenda_kpi['Time_Numeric'] = pd.to_numeric(agenda_kpi['Time'], errors='coerce').fillna(0)
                 total_agenda_time = int(agenda_kpi['Time_Numeric'].sum())
                 
-                # 📌 สถาปัตยกรรม UI ที่ถูกต้อง (Proper Layout Nesting)
                 col_kpi1, col_kpi2, col_kpi3 = st.columns(3)
                 
-                with col_kpi1: # 1. เข้าไปในพื้นที่คอลัมน์ที่ 1
-                    with st.container(border=True): # 2. สร้างกล่องมีขอบ "ไว้ข้างใน" คอลัมน์
-                        st.metric("👥 ยืนยันเข้าร่วม", f"{total_people} คน") # 3. ใส่ตัวเลขในกล่อง
-                        
+                with col_kpi1:
+                    kpi_card("👥 ยืนยันเข้าร่วม", f"{total_people} คน")
                 with col_kpi2:
-                    with st.container(border=True):
-                        st.metric("🍱 จำนวนข้าวกล่อง", f"{total_lunch} กล่อง")
-                        
+                    kpi_card("🍱 จำนวนข้าวกล่อง", f"{total_lunch} กล่อง")
                 with col_kpi3:
-                    with st.container(border=True):
-                        st.metric("⏱️ เวลาพรีเซนต์รวม", f"{total_agenda_time} นาที")
+                    kpi_card("⏱️ เวลาพรีเซนต์รวม", f"{total_agenda_time} นาที")
+            # ---------------------------------------------------------
             
             st.divider()
             st.subheader("🍔 ยอดสรุปการสั่งอาหารและเครื่องดื่ม")
@@ -389,7 +394,7 @@ with tab2:
                     csv_export = recalculated_df.to_csv(index=False).encode('utf-8-sig')
                     st.download_button("📥 Finalize & Export to Excel", data=csv_export, file_name=f"Schedule_{filter_date}.csv", mime="text/csv", use_container_width=True)
         elif df.empty:
-            pass # ซ่อนข้อความเตือน AI ถ้าไม่มีข้อมูล เพราะแจ้งไว้ด้านบนแล้ว
+            pass 
         elif filter_date == "รวมทุกวัน":
             st.warning("⚠️ กรุณาเลือก 'วันที่' จากตัวกรองด้านบนก่อน เพื่อให้ AI สร้างตารางแบบแยกวันได้อย่างถูกต้องครับ")
     else:
