@@ -203,7 +203,7 @@ with tab2:
                         except Exception as e:
                             st.error(f"Error: {e}")
         
-        with st.expander("⚙️ ตรวจสอบและตั้งค่า Master Data ประจำรอบ", expanded=False):
+        with st.expander("⚙️ ตรวจสอบและตั้งค่าอาหาร เครื่องดื่ม กีฬาประจำรอบ", expanded=False):
             new_dates_str = st.text_input("📅 วันที่จัดประชุม (คั่นด้วยลูกน้ำ เช่น 2026-08-27,2026-08-28)", value=",".join(date_options))
             new_employee_str = st.text_area("👥 รายชื่อพนักงานทั้งหมด", value=",".join(employee_options), height=60)
             
@@ -245,7 +245,7 @@ with tab2:
         st.divider()
         
         # 📌 ไฮไลท์การแก้ปัญหา: กล่องตัวกรองจะดันขึ้นมาอยู่ "ตรงกลางจอ มองเห็นทันที" ทันทีที่ล็อกอิน!
-        st.markdown("### 🔍 แผงควบคุมและสรุปข้อมูล (Main Control Panel)")
+        st.markdown("### 🔍 เลือกวันประชุม, กราฟอาหารและเครื่องดื่ม")
         
         data = get_cached_users()
         df = pd.DataFrame(data) if data else pd.DataFrame()
