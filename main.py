@@ -284,13 +284,20 @@ with tab2:
                 agenda_kpi['Time_Numeric'] = pd.to_numeric(agenda_kpi['Time'], errors='coerce').fillna(0)
                 total_agenda_time = int(agenda_kpi['Time_Numeric'].sum())
                 
+                # 📌 สถาปัตยกรรม UI ที่ถูกต้อง (Proper Layout Nesting)
                 col_kpi1, col_kpi2, col_kpi3 = st.columns(3)
-                with st.container(border=True):
-                    col_kpi1.metric("👥 ยืนยันเข้าร่วม", f"{total_people} คน")
-                with st.container(border=True):
-                    col_kpi2.metric("🍱 จำนวนข้าวกล่อง", f"{total_lunch} กล่อง")
-                with st.container(border=True):
-                    col_kpi3.metric("⏱️ เวลาพรีเซนต์รวม", f"{total_agenda_time} นาที")
+                
+                with col_kpi1: # 1. เข้าไปในพื้นที่คอลัมน์ที่ 1
+                    with st.container(border=True): # 2. สร้างกล่องมีขอบ "ไว้ข้างใน" คอลัมน์
+                        st.metric("👥 ยืนยันเข้าร่วม", f"{total_people} คน") # 3. ใส่ตัวเลขในกล่อง
+                        
+                with col_kpi2:
+                    with st.container(border=True):
+                        st.metric("🍱 จำนวนข้าวกล่อง", f"{total_lunch} กล่อง")
+                        
+                with col_kpi3:
+                    with st.container(border=True):
+                        st.metric("⏱️ เวลาพรีเซนต์รวม", f"{total_agenda_time} นาที")
             
             st.divider()
             st.subheader("🍔 ยอดสรุปการสั่งอาหารและเครื่องดื่ม")
