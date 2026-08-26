@@ -205,7 +205,7 @@ with tab2:
                 img_file = st.file_uploader("อัปโหลดไฟล์รูปเมนูร้านค้า", type=["jpg", "png", "jpeg", "webp"])
                 if img_file is not None:
                     image = Image.open(img_file)
-                    st.image(image, use_column_width=True)
+                    st.image(image, use_container_width=True)
             with ai_col:
                 st.info("💡 นำข้อความในกล่องนี้ ไปก๊อปปี้วางในช่องเมนูอาหารด้านล่างได้เลยครับ")
                 st.text_area("📋 กล่องพักข้อความจาก AI (Draft Box)", value=st.session_state.ai_draft, height=100)
