@@ -53,20 +53,101 @@ sweet_options = [x.strip() for x in settings_dict.get("Global_Sweetness", "ห�
 # 🧱 คลังอาวุธ (Component & Function Library)
 # ---------------------------------------------------------
 
+# 🕒 ฟังก์ชันอัจฉริยะ: Constraint-Based Scheduling Algorithm
 def recalculate_schedule_times(df, base_start_dt):
+    # 🛡️ THE FIX: Local Imports การันตีว่าหาไลบรารีเจอแน่นอน
+    import pandas as pd
+    from datetime import timedelta
+    
     if df.empty: return df
     df_clean = df.copy()
     
-    # 1. ถอดชิ้นส่วน: แยกวาระระบบ (System Blocks) ทิ้งไปก่อน
+    # 1. ถอดชิ้นส่วน: แยกวาระระบบทิ้งไปก่อน
     system_keywords = ["เปิดงาน", "พักรับประทาน", "พักเที่ยง", "พักเบรก", "ปิดการประชุม", "สรุปงาน"]
     def is_system_block(topic):
         return any(kw in str(topic) for kw in system_keywords)
         
     user_topics = df_clean[~df_clean['Topic'].apply(is_system_block)].copy()
     
-    # ... (โค้ดส่วนอื่นๆ ของฟังก์ชันใหม่ ยาวลงมาเรื่อยๆ) ...
+    # จัดเรียงตามลำดับ (Order)
+    if 'Order' in user_topics.columns:
+        user_topics['Order'] = pd.to_numeric(user_topics['Order'], errors='coerce').fillna(999)
+        user_topics = user_topics.sort_values(by='Order')
+        
+    topics_queue = user_topics.to_dict('records')
     
-    # 📦 แปลงกลับเป็น DataFrame และยิงกลับเข้า Data Editor
+    # 🎯 พระเอกของเรา: ประกาศตัวแปร new_schedule เป็นลิสต์ว่าง เพื่อรอรับตารางใหม่
+    new_schedule = []
+    
+    # ฟังก์ชันผู้ช่วยสำหรับเพิ่มลงตารางและเดินเวลาไปข้างหน้า
+    def add_event(topic, presenter, duration, start_dt):
+        end_dt = start_dt + timedelta(minutes=duration)
+        new_schedule.append({
+            'Time': f"{start_dt.strftime('%H.%M')}-{end_dt.strftime('%H.%M')}",
+            'Topic': topic,
+            'Presenter': presenter,
+            'Duration': duration
+        })
+        return end_dt
+
+    # ⏰ ตั้งค่า Hard Constraints (ล็อกเวลาตายตัว)
+    lunch_start = base_start_dt.replace(hour=12, minute=0, second=0)
+    closing_start = base_start_dt.replace(hour=16, minute=30, second=0)
+    curr_time = base_start_dt
+    
+    # --- ช่วงที่ 1: เปิดงาน (ล็อกเวลาเริ่ม) ---
+    curr_time = add_event("เปิดงาน/แจ้งสถานการณ์", "Admin", 45, curr_time)
+    
+    # --- ช่วงที่ 2: กล่องเช้า (09.15 - 12.00) ---
+    morning_break_inserted = False
+    morning_break_target = base_start_dt.replace(hour=10, minute=30, second=0)
+    
+    while topics_queue:
+        next_topic = topics_queue[0]
+        try: dur = int(float(next_topic.get('Duration', 0)))
+        except: dur = 0
+            
+        # ถ้าวาระนี้ทำให้ทะลุเที่ยง ให้หยุดหย่อนลงกล่องเช้า
+        if curr_time + timedelta(minutes=dur) > lunch_start:
+            break
+            
+        # แทรกเบรกเช้า
+        if not morning_break_inserted and curr_time >= morning_break_target:
+            if curr_time + timedelta(minutes=15 + dur) <= lunch_start:
+                curr_time = add_event("พักเบรก", "-", 15, curr_time)
+                morning_break_inserted = True
+                
+        topics_queue.pop(0)
+        curr_time = add_event(next_topic['Topic'], next_topic['Presenter'], dur, curr_time)
+        
+    # --- ช่วงที่ 3: พักเที่ยง (ล็อกเป้าที่ 12.00 เสมอ) ---
+    curr_time = lunch_start
+    curr_time = add_event("พักรับประทานอาหารกลางวัน", "-", 60, curr_time)
+    
+    # --- ช่วงที่ 4: กล่องบ่าย (13.00 - 16.30) ---
+    afternoon_break_inserted = False
+    afternoon_break_target = base_start_dt.replace(hour=14, minute=45, second=0)
+    
+    while topics_queue:
+        next_topic = topics_queue[0]
+        try: dur = int(float(next_topic.get('Duration', 0)))
+        except: dur = 0
+            
+        # แทรกเบรกบ่าย
+        if not afternoon_break_inserted and curr_time >= afternoon_break_target:
+            curr_time = add_event("พักเบรก", "-", 15, curr_time)
+            afternoon_break_inserted = True
+            
+        topics_queue.pop(0)
+        curr_time = add_event(next_topic['Topic'], next_topic['Presenter'], dur, curr_time)
+        
+    # --- ช่วงที่ 5: สรุปงาน (ล็อกเป้าเริ่มปิดงานตอน 16.30) ---
+    if curr_time < closing_start:
+        curr_time = closing_start 
+        
+    curr_time = add_event("สรุปงาน/ปิดการประชุม", "Admin", 30, curr_time)
+    
+    # 📦 แปลงกลับเป็น DataFrame
     res_df = pd.DataFrame(new_schedule)
     res_df.insert(0, 'Order', [float(i) for i in range(1, len(res_df) + 1)])
     
