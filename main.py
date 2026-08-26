@@ -54,34 +54,23 @@ sweet_options = [x.strip() for x in settings_dict.get("Global_Sweetness", "ห�
 # ---------------------------------------------------------
 
 def recalculate_schedule_times(df, base_start_dt):
+    if df.empty: return df
     df_clean = df.copy()
-    if 'Order' in df_clean.columns:
-        try:
-            df_clean['Order'] = pd.to_numeric(df_clean['Order'], errors='coerce').fillna(999)
-            df_clean = df_clean.sort_values(by='Order').reset_index(drop=True)
-        except: pass
-    try:
-        current_time = base_start_dt 
-        for idx, row in df_clean.iterrows():
-            topic_str = str(row.get('Topic', '')).strip()
-            if topic_str in ["พักรับประทานอาหารกลางวัน", "พักเที่ยง"]:
-                lunch_time = current_time.replace(hour=12, minute=0, second=0, microsecond=0)
-                if current_time < lunch_time: current_time = lunch_time
-            elif topic_str in ["สรุปงาน/ปิดการประชุม", "ปิดการประชุม"]:
-                closing_time = current_time.replace(hour=16, minute=30, second=0, microsecond=0)
-                if current_time < closing_time: current_time = closing_time
-            
-            start_str = current_time.strftime("%H.%M")
-            try: duration = int(float(row.get('Duration', 0)))
-            except: duration = 0
-            end_time = current_time + timedelta(minutes=duration)
-            end_str = end_time.strftime("%H.%M")
-            df_clean.at[idx, 'Time'] = f"{start_str}-{end_str}"
-            current_time = end_time
-            
-        if 'Order' in df_clean.columns: df_clean['Order'] = [float(i) for i in range(1, len(df_clean) + 1)]
-    except: pass
-    return df_clean
+    
+    # 1. ถอดชิ้นส่วน: แยกวาระระบบ (System Blocks) ทิ้งไปก่อน
+    system_keywords = ["เปิดงาน", "พักรับประทาน", "พักเที่ยง", "พักเบรก", "ปิดการประชุม", "สรุปงาน"]
+    def is_system_block(topic):
+        return any(kw in str(topic) for kw in system_keywords)
+        
+    user_topics = df_clean[~df_clean['Topic'].apply(is_system_block)].copy()
+    
+    # ... (โค้ดส่วนอื่นๆ ของฟังก์ชันใหม่ ยาวลงมาเรื่อยๆ) ...
+    
+    # 📦 แปลงกลับเป็น DataFrame และยิงกลับเข้า Data Editor
+    res_df = pd.DataFrame(new_schedule)
+    res_df.insert(0, 'Order', [float(i) for i in range(1, len(res_df) + 1)])
+    
+    return res_df
 
 # 📌 ประกาศ Component kpi_card ไว้ที่นี่! เพื่อให้ทุก Tab เรียกใช้ได้
 def kpi_card(title, value, delta_text=None, delta_color="normal"):
