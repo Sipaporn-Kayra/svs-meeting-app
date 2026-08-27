@@ -29,7 +29,7 @@ except Exception as e:
     st.error(f"เกิดข้อผิดพลาดในการเชื่อมต่อระบบ: {e}")
     st.stop()
 
-@st.cache_data(ttl=300) 
+@st.cache_data(ttl=600) 
 def get_cached_settings():
     return sheet_settings.get_all_values()
 
@@ -256,7 +256,8 @@ with tab1:
                                 sheet_user.append_row([timestamp, name, "เข้าร่วม", d, "-", "-", "-", topic_val, time_val])
                                 
             st.success("บันทึกข้อมูลเรียบร้อย!")
-            get_cached_users.clear() 
+            # 🛑 THE FIX: ปิดคำสั่งด้านล่างนี้ทิ้งไปเลยครับ!
+            # get_cached_users.clear()  
             st.balloons()
 
 # ==========================================
