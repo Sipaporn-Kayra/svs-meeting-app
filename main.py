@@ -48,6 +48,8 @@ date_options = [x.strip() for x in settings_dict.get("Global_Dates", datetime.no
 employee_options = [x.strip() for x in settings_dict.get("Global_Employees", "Admin,Kayra").split(",") if x.strip()]
 sport_options = [x.strip() for x in settings_dict.get("Global_Sport", "บาส,บอล,ไม่เข้าร่วม").split(",") if x.strip()]
 sweet_options = [x.strip() for x in settings_dict.get("Global_Sweetness", "หวานปกติ (100%),หวานน้อย (50%),ไม่หวาน (0%),หวานมาก (120%)").split(",") if x.strip()]
+roast_options = [x.strip() for x in settings_dict.get("Global_Roast", "ไม่ระบุ,คั่วอ่อน,คั่วกลาง,คั่วเข้ม").split(",") if x.strip()]
+temp_options = [x.strip() for x in settings_dict.get("Global_Temp", "เย็น,ร้อน,ปั่น").split(",") if x.strip()]
 
 # ---------------------------------------------------------
 # 🧱 คลังอาวุธ (Component & Function Library)
@@ -193,9 +195,9 @@ with tab1:
                     drink_col1, drink_col2 = st.columns(2)
                     with drink_col1:
                         drink_base = st.selectbox("เมนูหลัก", day_drink_options, key=f"drink_{d}")
-                        drink_roast = st.selectbox("เมล็ดกาแฟ", ["ไม่ระบุ", "คั่วอ่อน", "คั่วกลาง", "คั่วเข้ม"], key=f"roast_{d}")
+                        drink_roast = st.selectbox("เมล็ดกาแฟ", roast_options, key=f"roast_{d}")
                     with drink_col2:
-                        drink_temp = st.selectbox("รูปแบบ", ["เย็น", "ร้อน", "ปั่น"], key=f"temp_{d}")
+                        drink_temp = st.selectbox("รูปแบบ", temp_options, key=f"temp_{d}")
                         drink_sweet = st.selectbox("ระดับความหวาน", sweet_options, key=f"sweet_{d}")
                     
                     sport = st.selectbox(f"กิจกรรมกีฬา ({d})", sport_options, key=f"sport_{d}")
@@ -296,7 +298,10 @@ with tab2:
             config_row_g1, config_row_g2 = st.columns(2)
             with config_row_g1: new_sport_str = st.text_area("รายการกิจกรรมกีฬา (Global)", value=",".join(sport_options), height=60)
             with config_row_g2: new_sweet_str = st.text_area("ระดับความหวาน (Global)", value=",".join(sweet_options), height=60)
-            
+            config_row_g3, config_row_g4 = st.columns(2)
+            with config_row_g3: new_roast_str = st.text_area("ระดับการคั่วกาแฟ (Global)", value=",".join(roast_options), height=60)
+            with config_row_g4: new_temp_str = st.text_area("รูปแบบเครื่องดื่ม (Global)", value=",".join(temp_options), height=60)
+                
             st.markdown("#### 🍽️ ตั้งค่าเมนูอาหารแยกตามวัน")
             date_list_live = [x.strip() for x in new_dates_str.split(",") if x.strip()]
             daily_menu_inputs = {}
@@ -319,6 +324,8 @@ with tab2:
                 sheet_settings.append_row(["Global_Employees", new_employee_str])
                 sheet_settings.append_row(["Global_Sport", new_sport_str])
                 sheet_settings.append_row(["Global_Sweetness", new_sweet_str])
+                sheet_settings.append_row(["Global_Roast", new_roast_str])
+                sheet_settings.append_row(["Global_Temp", new_temp_str])
                 
                 for key, val in daily_menu_inputs.items():
                     cleaned_val = ",".join([x.strip() for x in val.split(",") if x.strip()])
