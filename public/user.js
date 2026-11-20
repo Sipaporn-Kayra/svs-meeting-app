@@ -11,7 +11,7 @@ function selectedDates(){return [...$("dates").querySelectorAll("input:checked")
 function attending(){return document.querySelector('input[name="attendance"]:checked')?.value==="เข้าร่วม"}
 function cardChoice(name,group,mode,imgSrc){
  const l=el("label","option"),inp=el("input");inp.type=mode;inp.name=group;inp.value=name;
- const imageUrl=typeof imgSrc==="string"&&/^https:\/\//.test(imgSrc)?imgSrc:"";
+ const imageUrl=typeof imgSrc==="string"&&(/^https:\/\//.test(imgSrc)||/^\/api\/menu-image\/[a-f0-9]{32}\.(jpg|png|webp)$/.test(imgSrc))?imgSrc:"";
  if(imageUrl){const img=el("img");img.src=imageUrl;img.alt="รูปเมนู "+name;img.loading="lazy";img.referrerPolicy="no-referrer";img.onerror=()=>{img.replaceWith(el("div","image-fallback",group.includes("food")?"🍱":"🥤"))};l.append(img)}
  else l.append(el("div","image-fallback",group.includes("food")?"🍱":"🥤"));
  l.append(inp,el("span","option-name",name));return l;
