@@ -9,7 +9,7 @@ function json(data,status=200,headers={}) {
 }
 function b64url(bytes) {
   let s="";for(const b of bytes)s+=String.fromCharCode(b);
-  return btoa(s).replace(/=/g,"").replace(/\\+/g,"-").replace(/\\//g,"_");
+  return btoa(s).replace(/=/g,"").replace(/\+/g,"-").replace(/\//g,"_");
 }
 function fromB64url(s) {
   const raw=atob(s.replace(/-/g,"+").replace(/_/g,"/"));return Uint8Array.from(raw,c=>c.charCodeAt(0));
@@ -39,7 +39,7 @@ async function googleToken(env){
  const now=Math.floor(Date.now()/1000);
  const head=b64url(encoder.encode(JSON.stringify({alg:"RS256",typ:"JWT"})));
  const body=b64url(encoder.encode(JSON.stringify({iss:sa.client_email,scope:"https://www.googleapis.com/auth/spreadsheets.readonly",aud:"https://oauth2.googleapis.com/token",iat:now,exp:now+3300})));
- const pk=sa.private_key.replace(/-----BEGIN PRIVATE KEY-----|-----END PRIVATE KEY-----|\\s/g,"");
+ const pk=sa.private_key.replace(/-----BEGIN PRIVATE KEY-----|-----END PRIVATE KEY-----|\s/g,"");
  const key=await crypto.subtle.importKey("pkcs8",Uint8Array.from(atob(pk),c=>c.charCodeAt(0)),{name:"RSASSA-PKCS1-v1_5",hash:"SHA-256"},false,["sign"]);
  const assertion=head+"."+body+"."+b64url(new Uint8Array(await crypto.subtle.sign("RSASSA-PKCS1-v1_5",key,encoder.encode(head+"."+body))));
  const response=await fetch("https://oauth2.googleapis.com/token",{method:"POST",headers:{"Content-Type":"application/x-www-form-urlencoded"},body:new URLSearchParams({grant_type:"urn:ietf:params:oauth:grant-type:jwt-bearer",assertion})});
@@ -104,7 +104,7 @@ export async function onRequest({request,env,params}){
    if(route==="session"&&request.method==="GET")return json({authenticated:true});
    if(route==="registrations"&&request.method==="GET"){
      const date=new URL(request.url).searchParams.get("date")||"";
-     if(date&&!/^\\d{4}-\\d{2}-\\d{2}$/.test(date))return json({error:"Invalid date"},400);
+     if(date&&!/^\d{4}-\d{2}-\d{2}$/.test(date))return json({error:"Invalid date"},400);
      const data=await readSheets(env);
      return json(parseData(data,date));
    }
