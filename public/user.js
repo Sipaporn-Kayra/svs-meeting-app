@@ -1,6 +1,6 @@
 (()=>{
 const $=id=>document.getElementById(id);
-const cats=["โรคระบาด / สุขภาพสัตว์","งานทดลอง / วิชาการ","งานฟาร์ม / ปฏิบัติการ","งานบริหาร / ทั่วไป","อื่น ๆ"];
+const cats=["สถานการณ์โรคระบาด/Case study","งานทดลองเวชภัณฑ์/คัดเลือกเวชภัณฑ์","Project","อื่นๆ"];
 let conf=null,code="",submitted=false;
 function el(tag,cls,txt){const x=document.createElement(tag);if(cls)x.className=cls;if(txt!==undefined)x.textContent=txt;return x}
 function select(options){const x=el("select");for(const v of options){const o=el("option","",v);o.value=v;x.append(o)}return x}
