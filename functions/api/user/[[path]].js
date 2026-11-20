@@ -38,7 +38,7 @@ async function readConfig(env,token){
  }
  return {dates,employees:split(entries.Global_Employees),sport:split(entries.Global_Sport),sweetness:split(entries.Global_Sweetness),roast:split(entries.Global_Roast),temperature:split(entries.Global_Temp),days};
 }
-const validCategories=new Set(["โรคระบาด / สุขภาพสัตว์","งานทดลอง / วิชาการ","งานฟาร์ม / ปฏิบัติการ","งานบริหาร / ทั่วไป","อื่น ๆ"]);
+const validCategories=new Set(["สถานการณ์โรคระบาด/Case study","งานทดลองเวชภัณฑ์/คัดเลือกเวชภัณฑ์","Project","อื่นๆ"]);
 const clean=v=>String(v??"").trim();
 function validate(payload,conf){
  const name=clean(payload.name),attendance=clean(payload.attendance);
