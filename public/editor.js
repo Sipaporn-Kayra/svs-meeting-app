@@ -2,6 +2,8 @@
 (()=>{
 const $=id=>document.getElementById(id);
 const state={agenda:[],seen:new Set(),incoming:[],date:"",dirty:false};
+const categories=["โรคระบาด / สุขภาพสัตว์","งานทดลอง / วิชาการ","งานฟาร์ม / ปฏิบัติการ","งานบริหาร / ทั่วไป","อื่น ๆ"];
+const guessCategory=t=>/ASF|PRRS|CSF|FMD|PED|โรค|ระบาด|วัคซีน|สุขภาพ/i.test(t)?"โรคระบาด / สุขภาพสัตว์":/ทดลอง|วิจัย|วิชาการ|ELISA|ผลตรวจ/i.test(t)?"งานทดลอง / วิชาการ":/ฟาร์ม|โรงเรือน|Biosecurity|สุกร|การเลี้ยง/i.test(t)?"งานฟาร์ม / ปฏิบัติการ":/ประชุม|แผนงาน|งบ|บริหาร/i.test(t)?"งานบริหาร / ทั่วไป":"อื่น ๆ";
 const months=["มกราคม","กุมภาพันธ์","มีนาคม","เมษายน","พฤษภาคม","มิถุนายน","กรกฎาคม","สิงหาคม","กันยายน","ตุลาคม","พฤศจิกายน","ธันวาคม"];
 const esc=s=>String(s??"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
 const currentDate=()=> $("date").value || "";
@@ -44,7 +46,7 @@ function merge(){
  let n=0;
  for(const a of state.incoming){
    if(!selected.has(a.source_id))continue;
-   state.agenda.push({source_id:a.source_id,topic:String(a.topic),presenter:String(a.presenter||""),minutes:Math.max(1,Number(a.minutes)||1)});
+   state.agenda.push({source_id:a.source_id,topic:String(a.topic),presenter:String(a.presenter||""),minutes:Math.max(1,Number(a.minutes)||1),category:categories.includes(a.category)?a.category:guessCategory(a.topic)});
    state.seen.add(a.source_id);n++;
  }
  state.dirty=true;$("mergePanel").hidden=true;render();notice("เพิ่ม "+n+" หัวข้อแล้ว สามารถแก้ไขก่อนส่งออกได้");
@@ -54,16 +56,17 @@ function render(){
  const root=$("editableAgenda");root.replaceChildren();
  state.agenda.forEach((a,i)=>{
    const row=document.createElement("div");row.className="agenda-edit-row";
-   const badge=document.createElement("strong");badge.textContent=String(i+1);
+   const badge=document.createElement("strong");badge.textContent="⠿ "+String(i+1);badge.title="จับเพื่อเลื่อนลำดับวาระ";badge.className="drag-handle";row.draggable=true;row.dataset.index=String(i);row.addEventListener("dragstart",ev=>{ev.dataTransfer.setData("text/plain",String(i));ev.dataTransfer.effectAllowed="move";row.classList.add("dragging")});row.addEventListener("dragend",()=>row.classList.remove("dragging"));row.addEventListener("dragover",ev=>{ev.preventDefault();ev.dataTransfer.dropEffect="move"});row.addEventListener("drop",ev=>{ev.preventDefault();const from=Number(ev.dataTransfer.getData("text/plain"));swap(from,i)});
    const topic=document.createElement("input");topic.value=a.topic;topic.placeholder="ชื่อวาระ";topic.setAttribute("aria-label","หัวข้อวาระ "+(i+1));
    const presenter=document.createElement("input");presenter.value=a.presenter;presenter.placeholder="Presenter";presenter.setAttribute("aria-label","Presenter "+(i+1));
    const minutes=document.createElement("input");minutes.type="number";minutes.min="1";minutes.max="480";minutes.value=a.minutes;minutes.setAttribute("aria-label","ระยะเวลาวาระ "+(i+1));
    topic.oninput=()=>{a.topic=topic.value;state.dirty=true;renderSchedule()};
    presenter.oninput=()=>{a.presenter=presenter.value;state.dirty=true;renderSchedule()};
    minutes.onchange=()=>{a.minutes=Math.max(1,Math.min(480,Number(minutes.value)||1));state.dirty=true;renderSchedule()};
+   const cat=document.createElement("select");cat.className="category-picker";cat.setAttribute("aria-label","หมวดหมู่ "+(i+1));for(const name of categories){const option=document.createElement("option");option.value=name;option.textContent=name;cat.append(option)}cat.value=categories.includes(a.category)?a.category:guessCategory(a.topic);a.category=cat.value;cat.onchange=()=>{a.category=cat.value;state.dirty=true;renderSchedule()};
    const controls=document.createElement("div");controls.className="agenda-actions";
    controls.append(addButton("↑",()=>swap(i,i-1),i===0),addButton("↓",()=>swap(i,i+1),i===state.agenda.length-1),addButton("ลบ",()=>{state.agenda.splice(i,1);state.dirty=true;render()}));
-   row.append(badge,topic,presenter,minutes,controls);root.append(row);
+   row.append(badge,topic,presenter,minutes,cat,controls);root.append(row);
  });
  $("agendaTotal").textContent=state.agenda.length+" หัวข้อ / "+state.agenda.reduce((n,a)=>n+(Number(a.minutes)||0),0)+" นาที";
  renderSchedule();
@@ -72,33 +75,39 @@ function toMinutes(t){const [h,m]=String(t||"08:30").split(":").map(Number);retu
 function hm(n){return String(Math.floor(n/60)%24).padStart(2,"0")+":"+String(n%60).padStart(2,"0")}
 function schedule(){
  let cursor=toMinutes($("meetingStart").value);
- const warnings=[],output=[],flexible=$("breakMode").value==="early";
- function add(topic,presenter,duration){const from=cursor;cursor+=duration;output.push({time:hm(from)+"–"+hm(cursor),topic,presenter,duration})}
+ const warning=[],output=[],early=$("breakMode").value==="early",autoFill=$("autoFill").checked;
+ const breaks=[{at:630,topic:"พักเบรกเช้า",duration:15,flexible:true},{at:720,topic:"พักรับประทานอาหารกลางวัน",duration:60,flexible:false},{at:885,topic:"พักเบรกบ่าย",duration:15,flexible:true}];
+ function add(topic,presenter,duration,category=""){const from=cursor;cursor+=duration;output.push({time:hm(from)+"–"+hm(cursor),topic,presenter,duration,category})}
+ const queue=state.agenda.map((a,i)=>({topic:a.topic||"(ยังไม่ระบุหัวข้อ)",presenter:a.presenter||"—",duration:Math.max(1,Number(a.minutes)||1),category:a.category||"อื่น ๆ",index:i}));
  add("เปิดงาน / แจ้งสถานการณ์","Admin",45);
- // Lunch is fixed at 12:00. Morning and afternoon breaks can move up to 15 minutes earlier.
- const breaks=[
-  {at:630,topic:"พักเบรกเช้า",duration:15,flexible:true},
-  {at:720,topic:"พักรับประทานอาหารกลางวัน",duration:60,flexible:false},
-  {at:885,topic:"พักเบรกบ่าย",duration:15,flexible:true}
- ];
- const topics=state.agenda.map(a=>({topic:a.topic||"(ยังไม่ระบุหัวข้อ)",presenter:a.presenter||"—",duration:Math.max(1,Number(a.minutes)||1)}));
- for(const topic of topics){
-  // If the next topic would cross a planned break, move the break earlier only when
-  // explicitly enabled and only within 15 min of its nominal time.
-  while(breaks.length && (cursor>=breaks[0].at || cursor+topic.duration>breaks[0].at)){
-   const br=breaks.shift(),early=flexible&&br.flexible&&cursor<br.at&&br.at-cursor<=15;
-   if(cursor<br.at&&!early)cursor=br.at;
-   if(cursor>br.at)warnings.push(br.topic+" เริ่มช้ากว่าเวลาปกติ");
-   add(br.topic,"—",br.duration);
+ let moved=0,guard=0;
+ while(queue.length && guard++<500){
+  // Insert a short future agenda item if it fits entirely before the next break.
+  const br=breaks[0],free=br?br.at-cursor:Infinity;
+  if(br&&cursor>=br.at){breaks.shift();add(br.topic,"—",br.duration);continue}
+  if(br && queue[0].duration>free && free>0 && autoFill){
+    const index=queue.findIndex((t,j)=>j>0&&t.duration<=free);
+    if(index>0){const [fit]=queue.splice(index,1);add(fit.topic,fit.presenter,fit.duration,fit.category);moved++;continue}
   }
-  add(topic.topic,topic.presenter,topic.duration);
+  if(br && queue[0].duration>free){
+    breaks.shift();
+    if(br.flexible && early && free>=0 && free<=15) {
+      add(br.topic,"—",br.duration);
+    } else {
+      if(cursor<br.at)cursor=br.at;
+      add(br.topic,"—",br.duration);
+    }
+    continue;
+  }
+  const t=queue.shift();add(t.topic,t.presenter,t.duration,t.category);
  }
- // No artificial empty time: if all agenda topics have ended, don't insert
- // future breaks or extend the meeting to 16:30.
+ if(moved)warning.push("เติมช่องว่างก่อนพักด้วย "+moved+" วาระจากลำดับถัดไป (ตรวจทานลำดับอีกครั้ง)");
+ // Only include breaks reached during the substantive meeting; no future breaks
+ // added solely to fill the afternoon after agenda work has ended.
  add("สรุปงาน / ปิดการประชุม","Admin",30);
- const excess=Math.max(0,cursor-990);
- if(excess>0)warnings.unshift("กำหนดการสิ้นสุด "+hm(cursor)+" น. เกิน 16:30 น. "+excess+" นาที");
- return {rows:output,warning:warnings,end:hm(cursor),overMinutes:excess};
+ const over=Math.max(0,cursor-1020);
+ if(over)warning.unshift("เวลาสิ้นสุด "+hm(cursor)+" น. เกิน 17:00 น. "+over+" นาที · ลดเวลา/ย้ายวาระก่อนส่งออก");
+ return {rows:output,warning,end:hm(cursor),overMinutes:over,autoMoved:moved};
 }
 function docInfo(){
  const date=state.date||new Date().toISOString().slice(0,10);
@@ -116,7 +125,7 @@ function renderSchedule(){
    }
    body.append(row);
  }
- $("scheduleWarning").textContent=(plan.overMinutes?"⚠ เกินเวลา 16:30 น. — ":"")+("สิ้นสุด "+plan.end+" น. · ")+(plan.warning.length?plan.warning.join(" · "):"โปรดตรวจสอบช่วงพัก เวลา และรายชื่อ Presenter ก่อนส่งออก");
+ $("scheduleWarning").textContent=(plan.overMinutes?"⚠ เกินเวลา 17:00 น. — ":"")+("สิ้นสุด "+plan.end+" น. · ")+(plan.warning.length?plan.warning.join(" · "):"โปรดตรวจสอบช่วงพัก เวลา และรายชื่อ Presenter ก่อนส่งออก");
  $("scheduleWarning").classList.toggle("time-overrun",plan.overMinutes>0);
 }
 function download(name,blob){const url=URL.createObjectURL(blob),link=document.createElement("a");link.href=url;link.download=name;link.click();setTimeout(()=>URL.revokeObjectURL(url),5000)}
@@ -152,12 +161,12 @@ function exportWord(){
  download("SVS_Meeting_"+info.date+".docx",zip([["[Content_Types].xml",types],["_rels/.rels",rels],["word/document.xml",xml]]));
 }
 $("reviewAgenda").onclick=review;$("mergeAgenda").onclick=merge;
-$("addAgenda").onclick=()=>{if(!state.date){notice("กรุณาเลือกวันที่ประชุมก่อน");return}state.agenda.push({source_id:"",topic:"",presenter:"",minutes:15});state.dirty=true;render()};
+$("addAgenda").onclick=()=>{if(!state.date){notice("กรุณาเลือกวันที่ประชุมก่อน");return}state.agenda.push({source_id:"",topic:"",presenter:"",minutes:15,category:"อื่น ๆ"});state.dirty=true;render()};
 $("saveAgenda").onclick=()=>{if(!state.date){notice("เลือกวันที่ประชุมก่อน");return}try{sessionStorage.setItem("svs-admin-draft-"+state.date,JSON.stringify(state.agenda));notice("บันทึกร่างเฉพาะแท็บนี้แล้ว (ปิดแท็บ/เบราว์เซอร์อาจทำให้ข้อมูลหาย)") }catch{notice("บันทึกไม่ได้ กรุณาส่งออกเอกสารเก็บไว้")}};
-$("restoreAgenda").onclick=()=>{try{const rows=JSON.parse(sessionStorage.getItem("svs-admin-draft-"+state.date));if(!Array.isArray(rows))throw Error();state.agenda=rows.filter(x=>x&&typeof x==="object").map(x=>({source_id:String(x.source_id||""),topic:String(x.topic||""),presenter:String(x.presenter||""),minutes:Math.max(1,Number(x.minutes)||1)}));state.seen=new Set(state.agenda.map(x=>x.source_id).filter(Boolean));render();notice("เรียกคืนร่างสำเร็จ") }catch{notice("ไม่พบร่างที่บันทึกไว้สำหรับวันที่นี้")}};
-$("meetingStart").onchange=renderSchedule;$("breakMode").onchange=renderSchedule;$("meetingPlace").oninput=renderSchedule;
-$("printMeeting").onclick=()=>{if(!state.date){notice("เลือกวันที่ประชุมก่อนส่งออก");return}window.print()};
-$("wordMeeting").onclick=()=>{if(!state.date){notice("เลือกวันที่ประชุมก่อนส่งออก");return}exportWord()};
-$("csvMeeting").onclick=()=>{if(!state.date){notice("เลือกวันที่ประชุมก่อนส่งออก");return}csv()};
+$("restoreAgenda").onclick=()=>{try{const rows=JSON.parse(sessionStorage.getItem("svs-admin-draft-"+state.date));if(!Array.isArray(rows))throw Error();state.agenda=rows.filter(x=>x&&typeof x==="object").map(x=>({source_id:String(x.source_id||""),topic:String(x.topic||""),presenter:String(x.presenter||""),minutes:Math.max(1,Number(x.minutes)||1),category:categories.includes(x.category)?x.category:guessCategory(x.topic)}));state.seen=new Set(state.agenda.map(x=>x.source_id).filter(Boolean));render();notice("เรียกคืนร่างสำเร็จ") }catch{notice("ไม่พบร่างที่บันทึกไว้สำหรับวันที่นี้")}};
+$("meetingStart").onchange=renderSchedule;$("breakMode").onchange=renderSchedule;$("autoFill").onchange=renderSchedule;$("meetingPlace").oninput=renderSchedule;
+$("printMeeting").onclick=()=>{if(!state.date){notice("เลือกวันที่ประชุมก่อนส่งออก");return}if(schedule().overMinutes){notice("ตารางเกิน 17:00 น. กรุณาลดเวลา/ปรับวาระก่อนส่งออก");return}window.print()};
+$("wordMeeting").onclick=()=>{if(!state.date){notice("เลือกวันที่ประชุมก่อนส่งออก");return}if(schedule().overMinutes){notice("ตารางเกิน 17:00 น. กรุณาลดเวลา/ปรับวาระก่อนส่งออก");return}exportWord()};
+$("csvMeeting").onclick=()=>{if(!state.date){notice("เลือกวันที่ประชุมก่อนส่งออก");return}if(schedule().overMinutes){notice("ตารางเกิน 17:00 น. กรุณาลดเวลา/ปรับวาระก่อนส่งออก");return}csv()};
 render();
 })();
