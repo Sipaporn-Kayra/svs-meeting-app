@@ -2,8 +2,9 @@
 (()=>{
 const $=id=>document.getElementById(id);
 const state={agenda:[],seen:new Set(),incoming:[],date:"",dirty:false};
-const categories=["โรคระบาด / สุขภาพสัตว์","งานทดลอง / วิชาการ","งานฟาร์ม / ปฏิบัติการ","งานบริหาร / ทั่วไป","อื่น ๆ"];
-const guessCategory=t=>/ASF|PRRS|CSF|FMD|PED|โรค|ระบาด|วัคซีน|สุขภาพ/i.test(t)?"โรคระบาด / สุขภาพสัตว์":/ทดลอง|วิจัย|วิชาการ|ELISA|ผลตรวจ/i.test(t)?"งานทดลอง / วิชาการ":/ฟาร์ม|โรงเรือน|Biosecurity|สุกร|การเลี้ยง/i.test(t)?"งานฟาร์ม / ปฏิบัติการ":/ประชุม|แผนงาน|งบ|บริหาร/i.test(t)?"งานบริหาร / ทั่วไป":"อื่น ๆ";
+const categories=["สถานการณ์โรคระบาด/Case study","งานทดลองเวชภัณฑ์/คัดเลือกเวชภัณฑ์","Project","อื่นๆ"];
+const guessCategory=t=>/ASF|PRRS|CSF|FMD|PED|โรค|ระบาด|case study|case|สถานการณ์|สุขภาพสัตว์/i.test(t)?"สถานการณ์โรคระบาด/Case study":/ทดลอง|วิจัย|คัดเลือก|เวชภัณฑ์|วัคซีน|ELISA|ผลตรวจ/i.test(t)?"งานทดลองเวชภัณฑ์/คัดเลือกเวชภัณฑ์":/project|โครงการ|ฟาร์ม|ระบบ|พัฒนา/i.test(t)?"Project":"อื่นๆ";
+const normalizeCategory=(category,topic)=>({"โรคระบาด / สุขภาพสัตว์":"สถานการณ์โรคระบาด/Case study","งานทดลอง / วิชาการ":"งานทดลองเวชภัณฑ์/คัดเลือกเวชภัณฑ์","งานฟาร์ม / ปฏิบัติการ":"Project","งานบริหาร / ทั่วไป":"อื่นๆ","อื่น ๆ":"อื่นๆ"}[category]|| (categories.includes(category)?category:guessCategory(topic)));
 const months=["มกราคม","กุมภาพันธ์","มีนาคม","เมษายน","พฤษภาคม","มิถุนายน","กรกฎาคม","สิงหาคม","กันยายน","ตุลาคม","พฤศจิกายน","ธันวาคม"];
 const esc=s=>String(s??"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
 const currentDate=()=> $("date").value || "";
@@ -46,7 +47,7 @@ function merge(){
  let n=0;
  for(const a of state.incoming){
    if(!selected.has(a.source_id))continue;
-   state.agenda.push({source_id:a.source_id,topic:String(a.topic),presenter:String(a.presenter||""),minutes:Math.max(1,Number(a.minutes)||1),category:categories.includes(a.category)?a.category:guessCategory(a.topic)});
+   state.agenda.push({source_id:a.source_id,topic:String(a.topic),presenter:String(a.presenter||""),minutes:Math.max(1,Number(a.minutes)||1),category:normalizeCategory(a.category,a.topic)});
    state.seen.add(a.source_id);n++;
  }
  state.dirty=true;$("mergePanel").hidden=true;render();notice("เพิ่ม "+n+" หัวข้อแล้ว สามารถแก้ไขก่อนส่งออกได้");
@@ -63,7 +64,7 @@ function render(){
    topic.oninput=()=>{a.topic=topic.value;state.dirty=true;renderSchedule()};
    presenter.oninput=()=>{a.presenter=presenter.value;state.dirty=true;renderSchedule()};
    minutes.onchange=()=>{a.minutes=Math.max(1,Math.min(480,Number(minutes.value)||1));state.dirty=true;renderSchedule()};
-   const cat=document.createElement("select");cat.className="category-picker";cat.setAttribute("aria-label","หมวดหมู่ "+(i+1));for(const name of categories){const option=document.createElement("option");option.value=name;option.textContent=name;cat.append(option)}cat.value=categories.includes(a.category)?a.category:guessCategory(a.topic);a.category=cat.value;cat.onchange=()=>{a.category=cat.value;state.dirty=true;renderSchedule()};
+   const cat=document.createElement("select");cat.className="category-picker";cat.setAttribute("aria-label","หมวดหมู่ "+(i+1));for(const name of categories){const option=document.createElement("option");option.value=name;option.textContent=name;cat.append(option)}cat.value=normalizeCategory(a.category,a.topic);a.category=cat.value;cat.onchange=()=>{a.category=cat.value;state.dirty=true;renderSchedule()};
    const controls=document.createElement("div");controls.className="agenda-actions";
    controls.append(addButton("↑",()=>swap(i,i-1),i===0),addButton("↓",()=>swap(i,i+1),i===state.agenda.length-1),addButton("ลบ",()=>{state.agenda.splice(i,1);state.dirty=true;render()}));
    row.append(badge,topic,presenter,minutes,cat,controls);root.append(row);
@@ -78,7 +79,7 @@ function schedule(){
  const warning=[],output=[],early=$("breakMode").value==="early",autoFill=$("autoFill").checked;
  const breaks=[{at:630,topic:"พักเบรกเช้า",duration:15,flexible:true},{at:720,topic:"พักรับประทานอาหารกลางวัน",duration:60,flexible:false},{at:885,topic:"พักเบรกบ่าย",duration:15,flexible:true}];
  function add(topic,presenter,duration,category=""){const from=cursor;cursor+=duration;output.push({time:hm(from)+"–"+hm(cursor),topic,presenter,duration,category})}
- const queue=state.agenda.map((a,i)=>({topic:a.topic||"(ยังไม่ระบุหัวข้อ)",presenter:a.presenter||"—",duration:Math.max(1,Number(a.minutes)||1),category:a.category||"อื่น ๆ",index:i}));
+ const queue=state.agenda.map((a,i)=>({topic:a.topic||"(ยังไม่ระบุหัวข้อ)",presenter:a.presenter||"—",duration:Math.max(1,Number(a.minutes)||1),category:a.category||"อื่นๆ",index:i}));
  add("เปิดงาน / แจ้งสถานการณ์","Admin",45);
  let moved=0,guard=0;
  while(queue.length && guard++<500){
@@ -168,10 +169,10 @@ function exportWord(){
  download("SVS_Meeting_"+info.date+".docx",zip([["[Content_Types].xml",types],["_rels/.rels",rels],["word/document.xml",xml]]));
 }
 $("reviewAgenda").onclick=review;$("mergeAgenda").onclick=merge;
-$("groupAgenda").onclick=()=>{state.agenda=state.agenda.map((a,index)=>({...a,_prior:index})).sort((a,b)=>categories.indexOf(a.category||"อื่น ๆ")-categories.indexOf(b.category||"อื่น ๆ")||a._prior-b._prior).map(({_prior,...a})=>a);state.dirty=true;render();notice("จัดวาระตามหมวดหมู่แล้ว · ตรวจสอบเวลาพักและลำดับก่อนส่งออก")};
-$("addAgenda").onclick=()=>{if(!state.date){notice("กรุณาเลือกวันที่ประชุมก่อน");return}state.agenda.push({source_id:"",topic:"",presenter:"",minutes:15,category:"อื่น ๆ"});state.dirty=true;render()};
+$("groupAgenda").onclick=()=>{state.agenda=state.agenda.map((a,index)=>({...a,_prior:index})).sort((a,b)=>categories.indexOf(a.category||"อื่นๆ")-categories.indexOf(b.category||"อื่น ๆ")||a._prior-b._prior).map(({_prior,...a})=>a);state.dirty=true;render();notice("จัดวาระตามหมวดหมู่แล้ว · ตรวจสอบเวลาพักและลำดับก่อนส่งออก")};
+$("addAgenda").onclick=()=>{if(!state.date){notice("กรุณาเลือกวันที่ประชุมก่อน");return}state.agenda.push({source_id:"",topic:"",presenter:"",minutes:15,category:"อื่นๆ"});state.dirty=true;render()};
 $("saveAgenda").onclick=()=>{if(!state.date){notice("เลือกวันที่ประชุมก่อน");return}try{sessionStorage.setItem("svs-admin-draft-"+state.date,JSON.stringify(state.agenda));notice("บันทึกร่างเฉพาะแท็บนี้แล้ว (ปิดแท็บ/เบราว์เซอร์อาจทำให้ข้อมูลหาย)") }catch{notice("บันทึกไม่ได้ กรุณาส่งออกเอกสารเก็บไว้")}};
-$("restoreAgenda").onclick=()=>{try{const rows=JSON.parse(sessionStorage.getItem("svs-admin-draft-"+state.date));if(!Array.isArray(rows))throw Error();state.agenda=rows.filter(x=>x&&typeof x==="object").map(x=>({source_id:String(x.source_id||""),topic:String(x.topic||""),presenter:String(x.presenter||""),minutes:Math.max(1,Number(x.minutes)||1),category:categories.includes(x.category)?x.category:guessCategory(x.topic)}));state.seen=new Set(state.agenda.map(x=>x.source_id).filter(Boolean));render();notice("เรียกคืนร่างสำเร็จ") }catch{notice("ไม่พบร่างที่บันทึกไว้สำหรับวันที่นี้")}};
+$("restoreAgenda").onclick=()=>{try{const rows=JSON.parse(sessionStorage.getItem("svs-admin-draft-"+state.date));if(!Array.isArray(rows))throw Error();state.agenda=rows.filter(x=>x&&typeof x==="object").map(x=>({source_id:String(x.source_id||""),topic:String(x.topic||""),presenter:String(x.presenter||""),minutes:Math.max(1,Number(x.minutes)||1),category:normalizeCategory(x.category,x.topic)}));state.seen=new Set(state.agenda.map(x=>x.source_id).filter(Boolean));render();notice("เรียกคืนร่างสำเร็จ") }catch{notice("ไม่พบร่างที่บันทึกไว้สำหรับวันที่นี้")}};
 $("meetingStart").onchange=renderSchedule;$("breakMode").onchange=renderSchedule;$("autoFill").onchange=renderSchedule;$("meetingPlace").oninput=renderSchedule;
 $("printMeeting").onclick=()=>{if(!state.date){notice("เลือกวันที่ประชุมก่อนส่งออก");return}if(schedule().overMinutes)notice("⚠ ตารางสิ้นสุด "+schedule().end+" น. เกิน 17:00 น. "+schedule().overMinutes+" นาที — Admin เลือกส่งออกเอกสารได้ โปรดตรวจสอบก่อนนำไปใช้จริง");window.print()};
 $("wordMeeting").onclick=()=>{if(!state.date){notice("เลือกวันที่ประชุมก่อนส่งออก");return}if(schedule().overMinutes)notice("⚠ ตารางสิ้นสุด "+schedule().end+" น. เกิน 17:00 น. "+schedule().overMinutes+" นาที — Admin เลือกส่งออกเอกสารได้ โปรดตรวจสอบก่อนนำไปใช้จริง");exportWord()};
