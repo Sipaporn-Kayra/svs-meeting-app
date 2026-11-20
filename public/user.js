@@ -6,7 +6,7 @@ function el(tag,cls,txt){const x=document.createElement(tag);if(cls)x.className=
 function select(options){const x=el("select");for(const v of options){const o=el("option","",v);o.value=v;x.append(o)}return x}
 function label(name,control){const l=el("label");l.append(document.createTextNode(name),control);return l}
 function status(id,msg,error=false){const x=$(id);x.textContent=msg;x.className=error?"notice error":"notice good"}
-async function call(route,payload){const r=await fetch("/api/user/"+route,{method:"POST",headers:{"Content-Type":"application/json"},cache:"no-store",body:JSON.stringify({code,...payload})});const j=await r.json().catch(()=>({}));if(!r.ok)throw Error(j.error||"เชื่อมต่อระบบไม่ได้");return j}
+async function call(route,payload){let r;try{r=await fetch("/api/user/"+route,{method:"POST",headers:{"Content-Type":"application/json"},cache:"no-store",body:JSON.stringify({code,...payload})})}catch{throw Error("เชื่อมต่อ API ไม่สำเร็จ (Network) กรุณาตรวจสอบอินเทอร์เน็ต")}const contentType=r.headers.get("content-type")||"";if(!contentType.includes("application/json"))throw Error("User API ตอบกลับ HTTP "+r.status+" โดยไม่ใช่ JSON — กรุณาตรวจสอบ Cloudflare Deployment และ Functions");const j=await r.json().catch(()=>({}));if(!r.ok)throw Error(j.error||("User API HTTP "+r.status));return j}
 function selectedDates(){return [...$("dates").querySelectorAll("input:checked")].map(x=>x.value)}
 function attending(){return document.querySelector('input[name="attendance"]:checked')?.value==="เข้าร่วม"}
 function cardChoice(name,group,mode,imgSrc){
