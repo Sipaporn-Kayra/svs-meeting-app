@@ -49,8 +49,8 @@ async function googleToken(env){
 async function readSheets(env){
  if(!env.GOOGLE_SHEET_ID)throw new Error("Sheet id not configured");
  const token=await googleToken(env);
- const ranges=["A:I","'Settings'!A:B"];
- // A:I reads the first worksheet, matching Streamlit db.sheet1 without assuming its title.
+ const ranges=["A:J","'Settings'!A:B"];
+ // A:J reads the first worksheet, matching Streamlit db.sheet1 without assuming its title.
  const url="https://sheets.googleapis.com/v4/spreadsheets/"+encodeURIComponent(env.GOOGLE_SHEET_ID)+"/values:batchGet?"+ranges.map(r=>"ranges="+encodeURIComponent(r)).join("&");
  const response=await fetch(url,{headers:{Authorization:"Bearer "+token}});
  if(!response.ok){
@@ -82,7 +82,7 @@ function parseData(data,date){
    if(r.Topic&&r.Topic.trim()!=="-"&&r.Topic.trim()){
      const identity=[r.Timestamp,r.Name,r.Date,r.Topic,r.Time].join("|");
      const count=(occurrences.get(identity)||0)+1;occurrences.set(identity,count);
-     agendas.push({source_id:stableKey(identity+"|"+count),date:r.Date,presenter:r.Name||"",topic:r.Topic,minutes:Math.max(0,Number(r.Time)||0),category:"อื่น ๆ"});
+     agendas.push({source_id:stableKey(identity+"|"+count),date:r.Date,presenter:r.Name||"",topic:r.Topic,minutes:Math.max(0,Number(r.Time)||0),category:r.Category||"อื่น ๆ"});
    }
  }
  return {dates:globalDates,selected_date:date||null,participants:people.size,agendas,food:[...food].map(([name,count])=>({name,count})),drinks:[...drinks].map(([name,count])=>({name,count})),fetched_at:new Date().toISOString()};
