@@ -7,6 +7,14 @@
 <section><div class="row"><label>เลือกวันที่ประชุม<select id="date"><option value="">รวมทุกวัน</option></select></label><div style="flex:0"><button id="refresh">↻ Refresh ข้อมูลล่าสุด</button></div></div><p class="muted" id="fetched"></p></section>
 <div class="grid kpi-grid"><section>👥 ผู้เข้าร่วม<div class="number" id="participants">—</div></section><section>🍱 จำนวนอาหาร<div class="number" id="meals">—</div></section><section>🥤 จำนวนเครื่องดื่ม<div class="number" id="drinks">—</div></section><section>📋 วาระประชุม<div class="number" id="agendas">—</div></section></div>
 <details class="collapsible-panel"><summary>รายการวาระประชุมจาก Google Sheets <span class="muted">คลิกเพื่อขยาย/ย่อ</span></summary><section><h2>ข้อมูลต้นฉบับ · รายการวาระ</h2><p class="muted">Presenter มาจากคอลัมน์ Name · ข้อมูลส่วนนี้อ่านจากระบบจริงและไม่เขียนทับร่างที่ Admin แก้ไข</p><div class="scroll"><table><thead><tr><th>วันที่</th><th>หัวข้อ</th><th>Presenter</th><th>เวลา (นาที)</th></tr></thead><tbody id="agendaRows"></tbody></table></div></section></details>
+<section id="menuImageManager" class="panel">
+<h2>🖼️ จัดการรูปอาหารและเครื่องดื่ม</h2>
+<p class="muted">Admin สามารถเลือกไฟล์จากเครื่อง (แนะนำ) หรือวาง URL รูปภาพแทนได้ ไม่ต้องแก้ JSON ใน Google Sheets</p>
+<div class="row"><label>วันที่ประชุม<select id="imageDate"><option value="">เลือกวันที่</option></select></label><label>ประเภท<select id="imageKind"><option value="food">🍱 อาหาร</option><option value="drink">🥤 เครื่องดื่ม</option></select></label><label>ชื่อเมนู<select id="imageMenu"><option value="">เลือกเมนู</option></select></label></div>
+<div class="row"><div><label>อัปโหลดรูปจากเครื่อง (JPG, PNG, WEBP ไม่เกิน 2 MB)<input id="imageFile" type="file" accept="image/jpeg,image/png,image/webp"></label></div><div><label>หรือวาง URL รูปภาพ (https://)<input id="imageUrl" type="url" placeholder="https://..."></label></div></div>
+<div class="row"><button id="imageUploadSave">อัปโหลดและบันทึกให้เมนู</button><button id="imageUrlSave" class="secondary">บันทึก URL แทน</button><button id="imageRemove" class="secondary">ลบรูปของเมนูนี้</button></div>
+<div class="row"><div><p class="muted">ตัวอย่างรูปเมนูที่เลือก</p><img id="menuImagePreview" hidden alt="ตัวอย่างรูปอาหารหรือเครื่องดื่ม" style="width:100%;max-width:250px;max-height:180px;object-fit:contain;border:1px solid #dbe6f3;border-radius:12px"></div><div><p id="imageNotice" class="muted" role="status">เลือกวันที่และเมนูเพื่อเริ่มจัดการรูปภาพ</p></div></div>
+</section>
 <section id="meetingEditor" class="panel">
 <h2>จัดตารางประชุม</h2>
 <p class="muted">ใช้วาระและ Presenter จาก Google Sheets ตรวจสอบก่อนรวมเข้าร่าง แก้ไขลำดับได้โดยไม่ต้องเรียก Gemini ใหม่ และไม่เปลี่ยนข้อมูลใน Sheets</p>
@@ -41,4 +49,4 @@ $('logout').onclick=async()=>{try{await api('logout',{method:'POST'})}finally{sn
 $('refresh').onclick=load;$('date').onchange=()=>{window.svsEditorDateChanging?.();load()};
 $('exportSnapshot').onclick=()=>{if(!snapshot)return;const b=new Blob([JSON.stringify(snapshot,null,2)],{type:'application/json'}),url=URL.createObjectURL(b),a=document.createElement('a');a.href=url;a.download='svs-sheet-snapshot.json';a.click();URL.revokeObjectURL(url)};
 api('session').then(()=>{show(true);load()}).catch(()=>show(false));
-</script><script src="/editor.js"></script></body></html>
+</script><script src="/editor.js"></script><script src="/menu-manager.js"></script></body></html>
