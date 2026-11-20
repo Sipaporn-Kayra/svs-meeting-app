@@ -49,8 +49,8 @@ async function googleToken(env){
 async function readSheets(env){
  if(!env.GOOGLE_SHEET_ID)throw new Error("Sheet id not configured");
  const token=await googleToken(env);
- const ranges=["'Sheet1'!A:I","'Settings'!A:B"];
- // Existing Streamlit uses db.sheet1: its default tab is often Sheet1, but verify actual tab name.
+ const ranges=["A:I","'Settings'!A:B"];
+ // A:I reads the first worksheet, matching Streamlit db.sheet1 without assuming its title.
  const url="https://sheets.googleapis.com/v4/spreadsheets/"+encodeURIComponent(env.GOOGLE_SHEET_ID)+"/values:batchGet?"+ranges.map(r=>"ranges="+encodeURIComponent(r)).join("&");
  const response=await fetch(url,{headers:{Authorization:"Bearer "+token}});
  if(!response.ok)throw new Error("Google Sheets read failed (check sharing and tab names)");
