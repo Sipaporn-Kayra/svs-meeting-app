@@ -144,18 +144,25 @@ function zip(files){
  const end=new Uint8Array([...b32(0x06054b50),...b16(0),...b16(0),...b16(files.length),...b16(files.length),...b32(size),...b32(offset),...b16(0)]);
  return new Blob([...blocks,...directory,end],{type:"application/vnd.openxmlformats-officedocument.wordprocessingml.document"});
 }
-function wParagraph(text,{bold=false,center=false}={}){
- return '<w:p><w:pPr><w:jc w:val="'+(center?"center":"left")+'"/></w:pPr><w:r><w:rPr><w:rFonts w:ascii="Kanit" w:hAnsi="Kanit" w:eastAsia="'+(bold?"Kanit":"Noto Sans Thai")+'"/>'+(bold?'<w:b/>':'')+'</w:rPr><w:t xml:space="preserve">'+esc(text)+'</w:t></w:r></w:p>';
+function wParagraph(text,{bold=false,center=false,size=20}={}){
+ const font=bold?"Kanit":"Noto Sans Thai";
+ return '<w:p><w:pPr><w:jc w:val="'+(center?"center":"left")+'"/><w:spacing w:after="90"/></w:pPr><w:r><w:rPr><w:rFonts w:ascii="'+font+'" w:hAnsi="'+font+'" w:eastAsia="'+font+'"/><w:sz w:val="'+size+'"/><w:szCs w:val="'+size+'"/>'+(bold?'<w:b/>':'')+'</w:rPr><w:t xml:space="preserve">'+esc(text)+'</w:t></w:r></w:p>';
 }
-function wCell(text){return '<w:tc><w:tcPr><w:tcW w:w="0" w:type="auto"/></w:tcPr>'+wParagraph(text)+'</w:tc>'}
+function wCell(text,{header=false}={}){
+ const content=wParagraph(text,{bold:header,size:19});
+ return '<w:tc><w:tcPr><w:tcW w:w="0" w:type="auto"/><w:vAlign w:val="center"/></w:tcPr>'+content+'</w:tc>';
+}
 function exportWord(){
  const info=docInfo(),data=schedule().rows;
- const table='<w:tbl><w:tblPr><w:tblW w:w="0" w:type="auto"/><w:tblBorders><w:bottom w:val="single" w:sz="4"/><w:insideH w:val="single" w:sz="4"/></w:tblBorders></w:tblPr>'+
- [["เวลา","หัวข้อประชุม","Presenter","นาที"],...data.map(x=>[x.time,x.topic,x.presenter,String(x.duration)])].map(row=>'<w:tr>'+row.map(wCell).join("")+'</w:tr>').join("")+'</w:tbl>';
- const signatures='<w:tbl><w:tblPr><w:tblW w:w="0" w:type="auto"/></w:tblPr><w:tr><w:tc>'+wParagraph("ลงชื่อ ......................................",{center:true})+wParagraph("ผู้เสนอ",{center:true})+'</w:tc><w:tc>'+wParagraph("ลงชื่อ ......................................",{center:true})+wParagraph("ผู้เห็นชอบ",{center:true})+'</w:tc></w:tr></w:tbl>';
+ const colWidths=[1900,5300,2400,900];
+ const headerRow='<w:tr><w:trPr><w:tblHeader w:val="true"/></w:trPr>'+["เวลา","หัวข้อประชุม","Presenter","นาที"].map(x=>wCell(x,{header:true})).join("")+'</w:tr>';
+ const contentRows=data.map(x=>'<w:tr><w:trPr><w:cantSplit/></w:trPr>'+[x.time,x.topic,x.presenter,String(x.duration)].map(v=>wCell(v)).join("")+'</w:tr>').join("");
+ const table='<w:tbl><w:tblPr><w:tblW w:w="10500" w:type="dxa"/><w:tblLayout w:type="fixed"/><w:tblBorders><w:top w:val="single" w:sz="4"/><w:left w:val="single" w:sz="4"/><w:bottom w:val="single" w:sz="4"/><w:right w:val="single" w:sz="4"/><w:insideH w:val="single" w:sz="4"/><w:insideV w:val="single" w:sz="4"/></w:tblBorders><w:tblCellMar><w:top w:w="75" w:type="dxa"/><w:bottom w:w="75" w:type="dxa"/><w:left w:w="80" w:type="dxa"/><w:right w:w="80" w:type="dxa"/></w:tblCellMar></w:tblPr><w:tblGrid>'+colWidths.map(w=>'<w:gridCol w:w="'+w+'"/>').join("")+'</w:tblGrid>'+headerRow+contentRows+'</w:tbl>';
+ const signatureCell=label=>'<w:tc><w:tcPr><w:tcW w:w="5250" w:type="dxa"/></w:tcPr>'+wParagraph("ลงชื่อ ......................................",{center:true})+wParagraph(label,{center:true})+'</w:tc>';
+ const signatures='<w:tbl><w:tblPr><w:tblW w:w="10500" w:type="dxa"/><w:tblLayout w:type="fixed"/></w:tblPr><w:tblGrid><w:gridCol w:w="5250"/><w:gridCol w:w="5250"/></w:tblGrid><w:tr><w:trPr><w:cantSplit/></w:trPr>'+signatureCell("ผู้เสนอ")+signatureCell("ผู้เห็นชอบ")+'</w:tr></w:tbl>';
  const xml='<?xml version="1.0" encoding="UTF-8" standalone="yes"?><w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body>'+
- wParagraph(info.title,{bold:true,center:true})+wParagraph(info.subtitle,{center:true})+wParagraph("")+table+wParagraph("")+signatures+
- '<w:sectPr><w:pgSz w:w="11906" w:h="16838"/><w:pgMar w:top="1134" w:bottom="1134" w:left="850" w:right="850"/></w:sectPr></w:body></w:document>';
+ wParagraph(info.title,{bold:true,center:true,size:28})+wParagraph(info.subtitle,{center:true,size:21})+wParagraph("")+table+wParagraph("")+signatures+
+ '<w:sectPr><w:pgSz w:w="11906" w:h="16838"/><w:pgMar w:top="1134" w:bottom="1134" w:left="700" w:right="700"/></w:sectPr></w:body></w:document>';
  const types='<?xml version="1.0" encoding="UTF-8"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/></Types>';
  const rels='<?xml version="1.0" encoding="UTF-8"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/></Relationships>';
  download("SVS_Meeting_"+info.date+".docx",zip([["[Content_Types].xml",types],["_rels/.rels",rels],["word/document.xml",xml]]));
