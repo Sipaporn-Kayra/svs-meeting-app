@@ -15,7 +15,7 @@ This branch is an **isolated, read-only backend integration**. Existing Streamli
    - `GOOGLE_SERVICE_ACCOUNT_JSON`: the **full JSON** of the existing Google service account (as a Secret, never in GitHub).
    - `GOOGLE_SHEET_ID`: spreadsheet identifier taken from the URL for `SVS_Database`.
 4. Enable Google Sheets API in the service account's Google Cloud project (if needed), and share the spreadsheet **Viewer** access with the service account's `client_email`. Read-only access is sufficient.
-5. Verify the actual first worksheet title (the Streamlit code uses `db.sheet1`, which does not guarantee the title is `Sheet1`). Update the range in `functions/api/admin/[[path]].js` if its name differs.
+5. The API reads `A:I` from the first worksheet, matching Streamlit `db.sheet1`, and reads the named `Settings` worksheet. Confirm the `Settings` tab exists and the header columns match.
 6. Test login, wrong password, login expiry, selecting a date, Refresh after new registration, food/drink counts, and logout.
 7. Configure Cloudflare WAF/rate limiting for `/api/admin/login` **before exposing** the test deployment; only give test URL to authorized staff.
 
