@@ -1,0 +1,84 @@
+(()=>{
+const $=id=>document.getElementById(id);
+const cats=["โรคระบาด / สุขภาพสัตว์","งานทดลอง / วิชาการ","งานฟาร์ม / ปฏิบัติการ","งานบริหาร / ทั่วไป","อื่น ๆ"];
+let conf=null,code="",submitted=false;
+function el(tag,cls,txt){const x=document.createElement(tag);if(cls)x.className=cls;if(txt!==undefined)x.textContent=txt;return x}
+function select(options){const x=el("select");for(const v of options){const o=el("option","",v);o.value=v;x.append(o)}return x}
+function label(name,control){const l=el("label");l.append(document.createTextNode(name),control);return l}
+function status(id,msg,error=false){const x=$(id);x.textContent=msg;x.className=error?"notice error":"notice good"}
+async function call(route,payload){const r=await fetch("/api/user/"+route,{method:"POST",headers:{"Content-Type":"application/json"},cache:"no-store",body:JSON.stringify({code,...payload})});const j=await r.json().catch(()=>({}));if(!r.ok)throw Error(j.error||"เชื่อมต่อระบบไม่ได้");return j}
+function selectedDates(){return [...$("dates").querySelectorAll("input:checked")].map(x=>x.value)}
+function attending(){return document.querySelector('input[name="attendance"]:checked')?.value==="เข้าร่วม"}
+function cardChoice(name,group,mode,imgSrc){
+ const l=el("label","option"),inp=el("input");inp.type=mode;inp.name=group;inp.value=name;
+ const imageUrl=typeof imgSrc==="string"&&/^https:\/\//.test(imgSrc)?imgSrc:"";
+ if(imageUrl){const img=el("img");img.src=imageUrl;img.alt="รูปเมนู "+name;img.loading="lazy";img.referrerPolicy="no-referrer";img.onerror=()=>{img.replaceWith(el("div","image-fallback",group.includes("food")?"🍱":"🥤"))};l.append(img)}
+ else l.append(el("div","image-fallback",group.includes("food")?"🍱":"🥤"));
+ l.append(inp,el("span","option-name",name));return l;
+}
+function menuFields(day){
+ const c=conf.days[day],box=el("div","date-card");box.dataset.day=day;box.append(el("div","date-heading","📅 "+day));
+ box.append(el("h3","","🍱 อาหาร"));
+ const foods=el("div","options");if(!c.food.length)foods.append(el("p","muted","ยังไม่มีเมนูอาหารสำหรับวันนี้"));
+ for(const name of c.food)foods.append(cardChoice(name,"food-"+day,"checkbox",c.foodImages[name]));
+ box.append(foods,el("h3","","🥤 เครื่องดื่ม"));
+ const drinks=el("div","options");if(!c.drinks.length)drinks.append(el("p","muted","ยังไม่มีเมนูเครื่องดื่มสำหรับวันนี้"));
+ for(const name of c.drinks)drinks.append(cardChoice(name,"drink-"+day,"radio",c.drinkImages[name]));
+ box.append(drinks);
+ const options=el("div","row");
+ const temperature=select(conf.temperature),roast=select(conf.roast),sweetness=select(conf.sweetness),sport=select(conf.sport);
+ temperature.dataset.field="temperature";roast.dataset.field="roast";sweetness.dataset.field="sweetness";sport.dataset.field="sport";
+ options.append(label("รูปแบบเครื่องดื่ม",temperature),label("ชนิดเมล็ดกาแฟ",roast),label("ระดับความหวาน",sweetness));
+ box.append(options,label("กิจกรรมกีฬา",sport));
+ return box;
+}
+function refreshDays(){
+ const selected=selectedDates(),parent=$("menuDays"),existing=new Map([...parent.children].map(x=>[x.dataset.day,x]));
+ parent.replaceChildren();for(const day of selected)parent.append(existing.get(day)||menuFields(day));
+ document.querySelectorAll(".agenda-day").forEach(s=>{const value=s.value;s.replaceChildren(...selected.map(d=>{const o=el("option","",d);o.value=d;return o}));if(selected.includes(value))s.value=value});
+}
+function agendaItem(data={}){
+ const wrapper=el("div","agenda-item");
+ const top=el("div","agenda-top");top.append(el("h3","","📋 วาระประชุม"));
+ const remove=el("button","secondary","ลบวาระ");remove.type="button";remove.onclick=()=>wrapper.remove();top.append(remove);wrapper.append(top);
+ const topic=el("input");topic.placeholder="เช่น อัปเดตสถานการณ์ PRRS ในพื้นที่";topic.maxLength=250;topic.value=data.topic||"";topic.className="agenda-topic";wrapper.append(label("หัวข้อประชุม",topic));
+ const row=el("div","row"),day=select(selectedDates()),category=select(cats),minutes=el("input");
+ day.className="agenda-day";category.className="agenda-category";minutes.type="number";minutes.min=1;minutes.max=240;minutes.value=data.minutes||15;minutes.className="agenda-minutes";
+ row.append(label("วันที่นำเสนอ",day),label("หมวดหมู่วาระ",category),label("ระยะเวลา (นาที)",minutes));wrapper.append(row);
+ $("agendaItems").append(wrapper);
+}
+function updateAttendance(){const flag=attending();$("participantFields").classList.toggle("hidden",!flag);$("dateBlock").classList.toggle("hidden",!flag)}
+function setup(data){
+ conf=data;
+ $("employee").replaceChildren(...data.employees.map(v=>{const o=el("option","",v);o.value=v;return o}));
+ $("dates").replaceChildren(...data.dates.map(day=>{const l=el("label","date-choice"),i=el("input");i.type="checkbox";i.value=day;i.onchange=refreshDays;l.append(i,document.createTextNode(day));return l}));
+ $("userForm").classList.remove("hidden");$("accessPanel").classList.add("hidden");updateAttendance();
+}
+$("enter").onclick=async()=>{code=$("accessCode").value.trim();$("enter").disabled=true;try{const data=await call("config",{});setup(data)}catch(e){status("accessStatus",e.message,true)}finally{$("enter").disabled=false}};
+document.querySelectorAll('input[name="attendance"]').forEach(x=>x.onchange=updateAttendance);
+$("addAgenda").onclick=()=>{if(!selectedDates().length){status("submitStatus","กรุณาเลือกวันที่เข้าร่วมก่อนเพิ่มวาระ",true);return}agendaItem()};
+$("submit").onclick=async()=>{
+ if(submitted)return;
+ const name=$("employee").value,attendance=attending()?"เข้าร่วม":"ไม่เข้าร่วม",dates=attending()?selectedDates():[];
+ if(attending()&&!dates.length){status("submitStatus","กรุณาเลือกวันที่เข้าร่วมอย่างน้อย 1 วัน",true);return}
+ const choices={};
+ for(const panel of $("menuDays").children){
+  const day=panel.dataset.day;choices[day]={
+   food:[...panel.querySelectorAll('input[name="food-'+CSS.escape(day)+'"]:checked')].map(x=>x.value),
+   drink:panel.querySelector('input[name="drink-'+CSS.escape(day)+'"]:checked')?.value||"",
+   temperature:panel.querySelector('[data-field="temperature"]').value,
+   roast:panel.querySelector('[data-field="roast"]').value,
+   sweetness:panel.querySelector('[data-field="sweetness"]').value,
+   sport:panel.querySelector('[data-field="sport"]').value
+  };
+ }
+ const agenda=[...$("agendaItems").children].map(item=>({
+  topic:item.querySelector(".agenda-topic").value.trim(),
+  date:item.querySelector(".agenda-day").value,
+  category:item.querySelector(".agenda-category").value,
+  minutes:Number(item.querySelector(".agenda-minutes").value)
+ })).filter(a=>a.topic);
+ $("submit").disabled=true;status("submitStatus","กำลังบันทึกข้อมูล...");
+ try{const res=await call("submit",{name,attendance,dates,choices,agenda});submitted=true;status("submitStatus","✅ บันทึกสำเร็จ "+res.rows+" แถว · ขอบคุณที่ลงทะเบียน");$("submit").textContent="บันทึกแล้ว";}catch(e){status("submitStatus",e.message,true);$("submit").disabled=false}
+};
+})();
