@@ -32,3 +32,27 @@ Records are read directly on each Refresh; no write call is made to Sheets.
 - The API deliberately has **read-only scope** and never changes existing Google Sheets data.
 - Current page is the **live-data integration stage**, not yet the full V5 agenda editor/Word/PDF page. The reviewed merge workflow must be integrated before switching to production.
 - Do not merge into `main` or change the existing Streamlit deployment until security and functionality have been verified.
+
+
+## Admin agenda editor (next development stage)
+The admin page now includes an editor that reads live registrations and supports:
+- Select a meeting date, then click **ตรวจสอบวาระใหม่** to review new submitted topics.
+- Select entries and click **รวมรายการที่เลือก**. Submitted `Name` is used as Presenter, `Topic` as title, and `Time` as minutes.
+- Edit topic/presenter/duration, reorder with arrows, or add/delete topics. All changes stay in the browser and **do not write back to Google Sheets**.
+- After clicking Refresh, the current edited list stays intact; use Review to explicitly merge new submissions.
+- **บันทึกร่าง** stores an unencrypted draft only in browser sessionStorage for the selected date; it is not shared across devices or suitable for sensitive meetings. Use the export functions to archive the work.
+- Export as a browser print-to-PDF, editable .docx, or CSV. Headings use Thai month/B.E. year and a meeting-location field. Signature positions are left (ผู้เสนอ) and right (ผู้เห็นชอบ).
+- Schedule time rules are a prototype: opening 45 min, breaks at ~10:30 (15 min), noon (60 min), 14:45 (15 min), closing at or after 16:30 (30 min). The editor warns on overruns, but its break placement and conflict handling need user acceptance testing before production.
+- No Google Sheets write endpoint has been added. Login and live refresh still require the configured Cloudflare secrets.
+
+### Regression testing
+1. Login, select date, load registrations. Verify food/drink KPIs still match the source.
+2. Click Review -> merge selected submissions -> confirm Presenter and minutes.
+3. Edit an existing topic, click Refresh, and confirm the edit remains.
+4. Add new row to Google Sheets through the existing Streamlit application, click Refresh then Review, and check that only the new row is offered.
+5. Check date switching, manual topic creation, deleting and reordering, as well as a meeting extending beyond 17:00.
+6. Download Word, open in desktop Word and check Thai text and left/right signatures.
+7. Print/Save to PDF from Chrome, inspect pages and the signature layout.
+8. Test from mobile and verify logout still blocks Admin API access.
+
+**Do not promote this branch or direct production traffic to it until steps above pass.**
