@@ -135,7 +135,7 @@ function exportWord(){
  const info=docInfo(),data=schedule().rows;
  const table='<w:tbl><w:tblPr><w:tblW w:w="0" w:type="auto"/><w:tblBorders><w:bottom w:val="single" w:sz="4"/><w:insideH w:val="single" w:sz="4"/></w:tblBorders></w:tblPr>'+
  [["เวลา","หัวข้อประชุม","Presenter","นาที"],...data.map(x=>[x.time,x.topic,x.presenter,String(x.duration)])].map(row=>'<w:tr>'+row.map(wCell).join("")+'</w:tr>').join("")+'</w:tbl>';
- const signatures='<w:tbl><w:tblPr><w:tblW w:w="0" w:type="auto"/></w:tblPr><w:tr>'+wCell("ลงชื่อ ......................................\nผู้เสนอ")+wCell("ลงชื่อ ......................................\nผู้เห็นชอบ")+'</w:tr></w:tbl>';
+ const signatures='<w:tbl><w:tblPr><w:tblW w:w="0" w:type="auto"/></w:tblPr><w:tr><w:tc>'+wParagraph("ลงชื่อ ......................................",{center:true})+wParagraph("ผู้เสนอ",{center:true})+'</w:tc><w:tc>'+wParagraph("ลงชื่อ ......................................",{center:true})+wParagraph("ผู้เห็นชอบ",{center:true})+'</w:tc></w:tr></w:tbl>';
  const xml='<?xml version="1.0" encoding="UTF-8" standalone="yes"?><w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body>'+
  wParagraph(info.title,{bold:true,center:true})+wParagraph(info.subtitle,{center:true})+wParagraph("")+table+wParagraph("")+signatures+
  '<w:sectPr><w:pgSz w:w="11906" w:h="16838"/><w:pgMar w:top="1134" w:bottom="1134" w:left="850" w:right="850"/></w:sectPr></w:body></w:document>';
