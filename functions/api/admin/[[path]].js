@@ -53,7 +53,10 @@ async function readSheets(env){
  // A:I reads the first worksheet, matching Streamlit db.sheet1 without assuming its title.
  const url="https://sheets.googleapis.com/v4/spreadsheets/"+encodeURIComponent(env.GOOGLE_SHEET_ID)+"/values:batchGet?"+ranges.map(r=>"ranges="+encodeURIComponent(r)).join("&");
  const response=await fetch(url,{headers:{Authorization:"Bearer "+token}});
- if(!response.ok)throw new Error("Google Sheets read failed (check sharing and tab names)");
+ if(!response.ok){
+   console.error("SVS Google Sheets API HTTP status:",response.status);
+   throw new Error("Google Sheets read failed (HTTP "+response.status+")");
+ }
  const payload=await response.json();
  return payload.valueRanges||[];
 }
