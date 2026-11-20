@@ -86,6 +86,7 @@ function parseData(data,date){
 }
 export async function onRequest({request,env,params}){
  const route=(params.path||[]).join("/");
+ if(request.method==="POST"&&request.headers.get("Origin")!==new URL(request.url).origin)return json({error:"Invalid request origin"},403);
  try {
    if(route==="login"&&request.method==="POST"){
      if(!env.ADMIN_PASSWORD||!env.SESSION_SECRET||env.SESSION_SECRET.length<32)return json({error:"Admin authentication is not configured"},503);
