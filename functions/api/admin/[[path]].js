@@ -248,6 +248,55 @@ async function changeRegistrationStatus(env,body){
  await sheetCall(env,token,"POST","/values:batchUpdate",{valueInputOption:"RAW",data:updates});
  return {ok:true,status:target,rows:match.length};
 }
+
+const lineCats=["สถานการณ์โรคระบาด/Case study","งานทดลองเวชภัณฑ์/คัดเลือกเวชภัณฑ์","Project","อื่นๆ"];
+function makeLineSummary(date,agendas){
+ const topics=agendas.filter(a=>a.date===date);
+ const groups=lineCats.map((name,i)=>({name,count:topics.filter(a=>(lineCats.includes(a.category)?a.category:lineCats[3])===name).length}));
+ const totalMinutes=topics.reduce((n,a)=>n+Math.max(0,Number(a.minutes)||0),0);
+ const lines=["📋 SVS Meeting | อัปเดตวาระที่เสนอ","วันประชุม: "+date.split("-").reverse().join("/"),"จำนวนวาระ: "+topics.length+" หัวข้อ","เวลานำเสนอรวม: "+totalMinutes+" นาที","","แยกตามประเภท:",...groups.map(g=>"• "+g.name+": "+g.count+" หัวข้อ"),"","หมายเหตุ: เป็นวาระที่เสนอ ยังไม่ใช่ตารางที่ Admin อนุมัติแล้ว","สมาชิกสามารถเพิ่มหรือแก้ไขวาระผ่าน SVS Meeting Portal"];
+ return {text:lines.join("\n"),topicCount:topics.length,totalMinutes,categories:groups};
+}
+async function lineSettings(env){
+ const token=await googleToken(env);
+ const settings=await menuSettings(env,token);
+ const values=Object.fromEntries(settings.raw.slice(1).filter(r=>r[0]).map(r=>[r[0],r[1]||""]));
+ return {groupId:values.LINE_GroupId||"",settings};
+}
+function maskGroup(value){return value?value.slice(0,4)+"••••"+value.slice(-5):""}
+async function linePreview(env,date){
+ if(!validDate(date))return {http:400,error:"กรุณาเลือกวันที่ประชุม"};
+ const result=parseData(await readSheets(env),date);
+ if(!result.active_dates.includes(date))return {http:409,error:"สามารถแจ้ง LINE ได้เฉพาะรอบประชุมที่เปิดลงทะเบียนอยู่"};
+ const summary=makeLineSummary(date,result.agendas);
+ const linked=await lineSettings(env);
+ return {ok:true,date,...summary,configured:Boolean(env.LINE_CHANNEL_ACCESS_TOKEN),connected:/^C[0-9a-f]{32}$/i.test(linked.groupId),group:maskGroup(linked.groupId)};
+}
+async function lineSaveGroup(env,body){
+ const groupId=String(body.groupId||"").trim();
+ if(!/^C[0-9a-f]{32}$/i.test(groupId))return {http:400,error:"Group ID ต้องขึ้นต้นด้วย C และตามด้วยอักษรฐานสิบหก 32 ตัว"};
+ const token=await googleToken(env,true);
+ const current=await menuSettings(env,token);
+ await writeSettings(env,token,current,{LINE_GroupId:groupId});
+ return {ok:true,connected:true,group:maskGroup(groupId)};
+}
+async function sendLineSummary(env,body){
+ const date=String(body.date||""),text=String(body.expectedText||""),requestId=String(body.requestId||"");
+ if(!/^[0-9a-f-]{36}$/i.test(requestId)||!text||text.length>4000)return {http:400,error:"กรุณาดูตัวอย่างก่อนกดส่ง"};
+ if(!env.LINE_CHANNEL_ACCESS_TOKEN)return {http:503,error:"ยังไม่ได้ตั้งค่า LINE_CHANNEL_ACCESS_TOKEN ใน Cloudflare Secrets"};
+ const group=(await lineSettings(env)).groupId;
+ if(!/^C[0-9a-f]{32}$/i.test(group))return {http:503,error:"ยังไม่ได้เชื่อม Group ID"};
+ const summary=await linePreview(env,date);
+ if(!summary.ok)return summary;
+ if(text!==summary.text)return {http:409,error:"วาระมีการเปลี่ยนแปลง กรุณาโหลดตัวอย่างใหม่"};
+ const response=await fetch("https://api.line.me/v2/bot/message/push",{
+  method:"POST",
+  headers:{"Authorization":"Bearer "+env.LINE_CHANNEL_ACCESS_TOKEN,"Content-Type":"application/json","X-Line-Retry-Key":requestId},
+  body:JSON.stringify({to:group,messages:[{type:"text",text:summary.text}]})
+ });
+ if(!response.ok){console.error("LINE push HTTP",response.status);return {http:response.status===429?429:502,error:"LINE ส่งข้อความไม่สำเร็จ (HTTP "+response.status+")"}}
+ return {ok:true,sent:true,date,topicCount:summary.topicCount,totalMinutes:summary.totalMinutes};
+}
 export async function onRequest({request,env,params}){
  const route=(params.path||[]).join("/");
  if(request.method==="POST"&&request.headers.get("Origin")!==new URL(request.url).origin)return json({error:"Invalid request origin"},403);
@@ -301,6 +350,18 @@ export async function onRequest({request,env,params}){
    if(route==="registration-status"&&request.method==="POST"){
      const body=await request.json().catch(()=>({}));
      const result=await changeRegistrationStatus(env,body);
+     return json(result,result.http||200);
+   }
+   if(route==="line-preview"&&request.method==="GET"){
+     const result=await linePreview(env,new URL(request.url).searchParams.get("date")||"");
+     return json(result,result.http||200);
+   }
+   if(route==="line-group-save"&&request.method==="POST"){
+     const result=await lineSaveGroup(env,await request.json().catch(()=>({})));
+     return json(result,result.http||200);
+   }
+   if(route==="line-send"&&request.method==="POST"){
+     const result=await sendLineSummary(env,await request.json().catch(()=>({})));
      return json(result,result.http||200);
    }
    if(route==="registrations"&&request.method==="GET"){
