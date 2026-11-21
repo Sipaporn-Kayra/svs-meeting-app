@@ -70,9 +70,82 @@ function validate(payload,conf){
  }
  return rows;
 }
+
+const receiptHeaders=["EditTokenHash","RegistrationID","RequestID","Revision"];
+function encodeText(value){return String(value??"")}
+async function hashReceipt(receipt){
+ const result=await crypto.subtle.digest("SHA-256",utf8.encode(receipt));
+ return Array.from(new Uint8Array(result),x=>x.toString(16).padStart(2,"0")).join("");
+}
+function receiptValue(){return Array.from(crypto.getRandomValues(new Uint8Array(24)),x=>x.toString(16).padStart(2,"0")).join("")}
+const validReceipt=v=>typeof v==="string"&&/^[a-f0-9]{48}$/.test(v);
+const validRequestId=v=>typeof v==="string"&&/^[a-zA-Z0-9-]{12,80}$/.test(v);
+async function registrationSheet(env,token){
+ const all=await sheetRequest(env,token,"GET","/values/A1%3AN");
+ const rows=all.values||[],headers=rows[0]||[];
+ const expected=["Timestamp","Name","Attendance","Date","Lunch","Drink","Sport","Topic","Time","Category"];
+ if(expected.some((x,i)=>i===9?headers[i]&&headers[i]!==x:headers[i]!==x))throw Error("Sheet registration columns do not match schema");
+ if(headers.slice(10,14).some((h,i)=>h&&h!==receiptHeaders[i]))throw Error("Registration metadata columns K:N already contain another schema");
+ return {rows,headers,records:rows.slice(1).map((v,i)=>({v,row:i+2})).filter(r=>r.v.some(x=>String(x||"").trim()))};
+}
+async function ensureReceiptHeaders(env,token,headers){
+ const values=receiptHeaders.map((x,i)=>headers[i+10]||x);
+ await sheetRequest(env,token,"PUT","/values/K1%3AN1?valueInputOption=RAW",{range:"K1:N1",majorDimension:"ROWS",values:[values]});
+ if(!headers[9])await sheetRequest(env,token,"PUT","/values/J1?valueInputOption=RAW",{range:"J1",majorDimension:"ROWS",values:[["Category"]]});
+}
+function priorForName(records,name,dates){
+ const dateSet=new Set(dates);
+ return records.filter(r=>r.v[1]===name&&(dateSet.has(r.v[3])||(r.v[2]==="ไม่เข้าร่วม"&&r.v[3]==="-"&&dateSet.has(r.v[14]||""))));
+}
+function matchesByReceipt(records,name,receiptHash){
+ return records.filter(r=>r.v[1]===name&&r.v[10]===receiptHash&&r.v[11]);
+}
+function decodeDrink(display,opts,conf){
+ const options=opts?.drinks||[];
+ const base=options.find(x=>display===x||display.startsWith(x+" ("))||"";
+ const end=display.slice(base.length).replace(/^ \(/,"").replace(/\)$/,"");
+ const parts=end.split(", ").map(x=>x.trim());
+ return {drink:base,temperature:parts[0]||conf.temperature[0]||"",roast:parts.length>2?(parts[1]||""):(conf.roast.includes("ไม่ระบุ")?"ไม่ระบุ":conf.roast[0]||""),sweetness:parts.at(-1)||conf.sweetness[0]||""};
+}
+function restoreReceipt(records,conf){
+ const first=records[0]?.v;
+ const name=first?.[1]||"",attendance=first?.[2]||"เข้าร่วม";
+ const days=[...new Set(records.map(r=>r.v[3]).filter(d=>conf.dates.includes(d)))];
+ const choices={},agenda=[];
+ for(const day of days){
+  const group=records.filter(r=>r.v[3]===day);
+  const firstMeal=group.find(r=>r.v[4]&&r.v[4]!=="-")?.v;
+  const firstDrink=group.find(r=>r.v[5]&&r.v[5]!=="-")?.v;
+  const firstSport=group.find(r=>r.v[6]&&r.v[6]!=="-")?.v;
+  const food=(firstMeal?.[4]||"").split(", ").filter(x=>conf.days[day].food.includes(x));
+  const drink=decodeDrink(firstDrink?.[5]||"",conf.days[day],conf);
+  choices[day]={food,...drink,sport:firstSport?.[6]||conf.sport[0]||""};
+  for(const row of group){
+   const [,, , , , , ,topic,time,category]=row.v;
+   if(topic&&topic!=="-")agenda.push({date:day,topic,minutes:Number(time)||15,category:validCategories.has(category)?category:"อื่นๆ"});
+  }
+ }
+ return {name,attendance,dates:days,choices,agenda};
+}
+async function firstSheetId(env,token){
+ const result=await sheetRequest(env,token,"GET","?fields="+encodeURIComponent("sheets(properties(sheetId,index,title))"));
+ const first=result.sheets?.find(sheet=>sheet.properties?.index===0);
+ if(!Number.isInteger(first?.properties?.sheetId))throw Error("First worksheet not found");
+ return first.properties.sheetId;
+}
+function asCellRow(values){
+ return {values:values.map(x=>({userEnteredValue:typeof x==="number"?{numberValue:x}:{stringValue:encodeText(x)}}))};
+}
+async function replaceRegistration(env,token,oldRecords,newRows){
+ const sheetId=await firstSheetId(env,token);
+ const indices=oldRecords.map(r=>r.row-1).sort((a,b)=>b-a);
+ const requests=indices.map(index=>({deleteDimension:{range:{sheetId,dimension:"ROWS",startIndex:index,endIndex:index+1}}}));
+ requests.push({appendCells:{sheetId,rows:newRows.map(asCellRow),fields:"userEnteredValue"}});
+ await sheetRequest(env,token,"POST",":batchUpdate",{requests});
+}
 export async function onRequest({request,env,params}){
  const route=Array.isArray(params.path)?params.path.join("/"):params.path||"";
- if(request.method!=="POST"||!["config","submit"].includes(route))return output({error:"Not found"},404);
+ if(request.method!=="POST"||!["config","submit","restore"].includes(route))return output({error:"Not found"},404);
  const origin=request.headers.get("Origin");
  if(origin!==new URL(request.url).origin)return output({error:"Invalid request origin"},403);
  const fetchSite=request.headers.get("Sec-Fetch-Site");
@@ -86,18 +159,47 @@ export async function onRequest({request,env,params}){
   const token=await accessToken(env);
   const config=await readConfig(env,token);
   if(route==="config")return output(config);
+  const sheet=await registrationSheet(env,token);
+  const name=clean(body.name),receipt=clean(body.receipt);
+  const previousHash=validReceipt(receipt)?await hashReceipt(receipt):"";
+  if(route==="restore"){
+   if(!config.employees.includes(name))return output({error:"กรุณาเลือกชื่อผู้ลงทะเบียน"},400);
+   if(!previousHash)return output({error:"กรุณากรอกรหัสแก้ไข 48 ตัวอักษร"},400);
+   const own=matchesByReceipt(sheet.records,name,previousHash);
+   if(!own.length)return output({error:"ไม่พบรายการที่ตรงกับชื่อและรหัสแก้ไข กรุณาติดต่อ Admin"},404);
+   if(own.some(r=>r.v[3]!=="-"&&!config.dates.includes(r.v[3])))return output({error:"รอบประชุมนี้ปิดรับลงทะเบียนแล้ว กรุณาติดต่อ Admin"},409);
+   const versions=new Set(own.map(r=>r.v[13]||"1"));
+   const ids=new Set(own.map(r=>r.v[11]));
+   if(ids.size!==1||versions.size!==1)return output({error:"พบข้อมูลแก้ไขไม่สอดคล้อง กรุณาติดต่อ Admin"},409);
+   return output({ok:true,registration:restoreReceipt(own,config),revision:[...versions][0]});
+  }
   const rows=validate(body,config);
-  // Existing Streamlit uses A:I. New Cloudflare rows write A:J and use the
-  // optional Category column; no existing data is overwritten.
-  const first=await sheetRequest(env,token,"GET","/values/A1%3AJ1");
-  const headers=first.values?.[0]||[];
-  const expected=["Timestamp","Name","Attendance","Date","Lunch","Drink","Sport","Topic","Time"];
-  if(expected.some((v,i)=>headers[i]!==v))throw Error("Sheet columns do not match existing registration schema");
-  if(!headers[9]){
-   await sheetRequest(env,token,"PUT","/values/J1?valueInputOption=RAW",{range:"J1",majorDimension:"ROWS",values:[["Category"]]});
-  }else if(headers[9]!=="Category")throw Error("Column J is already used by another field");
-  await sheetRequest(env,token,"POST","/values/A%3AJ:append?valueInputOption=RAW&insertDataOption=INSERT_ROWS",{majorDimension:"ROWS",values:rows});
-  return output({ok:true,rows:rows.length});
+  const dates=body.attendance==="เข้าร่วม"?Array.isArray(body.dates)?body.dates:[]:config.dates;
+  const existing=priorForName(sheet.records,name,dates);
+  const requestId=clean(body.requestId);
+  if(!validRequestId(requestId))return output({error:"กรุณาโหลดหน้าแบบฟอร์มใหม่แล้วลองอีกครั้ง"},400);
+  const own=previousHash?matchesByReceipt(sheet.records,name,previousHash):[];
+  const editing=own.length>0;
+  if(previousHash&&!editing)return output({error:"รหัสแก้ไขไม่ถูกต้อง หรือไม่พบข้อมูลเดิมของคุณ"},403);
+  if(editing){
+   const oldId=own[0].v[11],revision=own[0].v[13]||"1";
+   if(own.some(r=>r.v[11]!==oldId||r.v[13]!==revision))return output({error:"ข้อมูลเดิมไม่สอดคล้อง กรุณาติดต่อ Admin"},409);
+   if(String(body.revision||"")!==String(revision))return output({error:"ข้อมูลมีการเปลี่ยนแปลง กรุณาโหลดรายการเดิมอีกครั้ง"},409);
+   if(existing.some(r=>!own.some(y=>y.row===r.row)))return output({error:"ชื่อนี้มีการลงทะเบียนสำหรับวันที่เลือกอยู่แล้ว และไม่ได้เป็นรายการที่คุณกำลังแก้ไข"},409);
+   if(own.some(r=>r.v[3]!=="-"&&!config.dates.includes(r.v[3])))return output({error:"รอบเดิมปิดรับลงทะเบียนแล้ว กรุณาติดต่อ Admin"},409);
+   await ensureReceiptHeaders(env,token,sheet.headers);
+   const updatedRows=rows.map(row=>[...row,previousHash,oldId,requestId,String(Number(revision)+1)]);
+   await replaceRegistration(env,token,own,updatedRows);
+   return output({ok:true,updated:true,rows:updatedRows.length,receipt,revision:String(Number(revision)+1)});
+  }
+  if(existing.length)return output({error:"ชื่อนี้มีข้อมูลลงทะเบียนสำหรับวันที่เลือกแล้ว หากเป็นข้อมูลของคุณ กรุณาใช้รหัสแก้ไขเดิมหรือแจ้ง Admin (ระบบไม่เพิ่มข้อมูลซ้ำ)",duplicate:true},409);
+  const repeat=sheet.records.filter(r=>r.v[12]===requestId);
+  if(repeat.length)return output({error:"รายการนี้เคยถูกบันทึกแล้ว กรุณาตรวจสอบก่อนส่งอีกครั้ง",duplicate:true},409);
+  await ensureReceiptHeaders(env,token,sheet.headers);
+  const newReceipt=receiptValue(),hash=await hashReceipt(newReceipt),registrationId=crypto.randomUUID();
+  const metaRows=rows.map(row=>[...row,hash,registrationId,requestId,"1"]);
+  await sheetRequest(env,token,"POST","/values/A%3AN:append?valueInputOption=RAW&insertDataOption=INSERT_ROWS",{majorDimension:"ROWS",values:metaRows});
+  return output({ok:true,rows:metaRows.length,receipt:newReceipt,revision:"1"});
  }catch(e){
   if(/กรุณา|จำนวนวาระ/.test(e.message))return output({error:e.message},400);
   console.error("SVS user submission error:",e.message);
