@@ -81,11 +81,12 @@ function receiptValue(){return Array.from(crypto.getRandomValues(new Uint8Array(
 const validReceipt=v=>typeof v==="string"&&/^[a-f0-9]{48}$/.test(v);
 const validRequestId=v=>typeof v==="string"&&/^[a-zA-Z0-9-]{12,80}$/.test(v);
 async function registrationSheet(env,token){
- const all=await sheetRequest(env,token,"GET","/values/A1%3AN");
+ const all=await sheetRequest(env,token,"GET","/values/A1%3AO");
  const rows=all.values||[],headers=rows[0]||[];
  const expected=["Timestamp","Name","Attendance","Date","Lunch","Drink","Sport","Topic","Time","Category"];
  if(expected.some((x,i)=>i===9?headers[i]&&headers[i]!==x:headers[i]!==x))throw Error("Sheet registration columns do not match schema");
  if(headers.slice(10,14).some((h,i)=>h&&h!==receiptHeaders[i]))throw Error("Registration metadata columns K:N already contain another schema");
+ if(headers[14]&&headers[14]!=="RecordStatus")throw Error("Column O already in use");
  return {rows,headers,records:rows.slice(1).map((v,i)=>({v,row:i+2})).filter(r=>r.v.some(x=>String(x||"").trim()))};
 }
 async function ensureReceiptHeaders(env,token,headers){
@@ -95,10 +96,10 @@ async function ensureReceiptHeaders(env,token,headers){
 }
 function priorForName(records,name,dates){
  const dateSet=new Set(dates);
- return records.filter(r=>r.v[1]===name&&dateSet.has(r.v[3]));
+ return records.filter(r=>r.v[14]!=="ARCHIVED"&&r.v[1]===name&&dateSet.has(r.v[3]));
 }
 function matchesByReceipt(records,name,receiptHash){
- return records.filter(r=>r.v[1]===name&&r.v[10]===receiptHash&&r.v[11]);
+ return records.filter(r=>r.v[14]!=="ARCHIVED"&&r.v[1]===name&&r.v[10]===receiptHash&&r.v[11]);
 }
 function decodeDrink(display,opts,conf){
  const options=opts?.drinks||[];
@@ -227,17 +228,17 @@ export async function onRequest({request,env,params}){
    if(existing.some(r=>!own.some(y=>y.row===r.row)))return output({error:"ชื่อนี้มีการลงทะเบียนสำหรับวันที่เลือกอยู่แล้ว และไม่ได้เป็นรายการที่คุณกำลังแก้ไข"},409);
    if(own.some(r=>r.v[3]!=="-"&&!config.dates.includes(r.v[3])))return output({error:"รอบเดิมปิดรับลงทะเบียนแล้ว กรุณาติดต่อ Admin"},409);
    await ensureReceiptHeaders(env,token,sheet.headers);
-   const updatedRows=rows.map(row=>[...row,previousHash,oldId,requestId,String(Number(revision)+1)]);
+   const updatedRows=rows.map(row=>[...row,previousHash,oldId,requestId,String(Number(revision)+1),""]);
    await replaceRegistration(env,token,own,updatedRows);
    return output({ok:true,updated:true,rows:updatedRows.length,receipt,revision:String(Number(revision)+1)});
   }
   if(existing.length)return output({error:"ชื่อนี้มีข้อมูลลงทะเบียนสำหรับวันที่เลือกแล้ว หากเป็นข้อมูลของคุณ กรุณาใช้รหัสแก้ไขเดิมหรือแจ้ง Admin (ระบบไม่เพิ่มข้อมูลซ้ำ)",duplicate:true},409);
-  const repeat=sheet.records.filter(r=>r.v[12]===requestId);
+  const repeat=sheet.records.filter(r=>r.v[14]!=="ARCHIVED"&&r.v[12]===requestId);
   if(repeat.length)return output({error:"รายการนี้เคยถูกบันทึกแล้ว กรุณาตรวจสอบก่อนส่งอีกครั้ง",duplicate:true},409);
   await ensureReceiptHeaders(env,token,sheet.headers);
   const newReceipt=receiptValue(),hash=await hashReceipt(newReceipt),registrationId=crypto.randomUUID();
-  const metaRows=rows.map(row=>[...row,hash,registrationId,requestId,"1"]);
-  await sheetRequest(env,token,"POST","/values/A%3AN:append?valueInputOption=RAW&insertDataOption=INSERT_ROWS",{majorDimension:"ROWS",values:metaRows});
+  const metaRows=rows.map(row=>[...row,hash,registrationId,requestId,"1",""]);
+  await sheetRequest(env,token,"POST","/values/A%3AO:append?valueInputOption=RAW&insertDataOption=INSERT_ROWS",{majorDimension:"ROWS",values:metaRows});
   return output({ok:true,rows:metaRows.length,receipt:newReceipt,revision:"1"});
  }catch(e){
   if(/กรุณา|จำนวนวาระ/.test(e.message))return output({error:e.message},400);
