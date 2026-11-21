@@ -80,6 +80,16 @@
   finally{$("lineGroupSave").disabled=false}
  }
  $("lineDate").addEventListener("change",()=>{invalidate();say("lineStatus","วันที่เปลี่ยนแล้ว กรุณาดูตัวอย่างใหม่")});
+ $("lineTokenCheck").addEventListener("click",async()=>{
+  const b=$("lineTokenCheck");b.disabled=true;
+  say("lineTokenStatus","กำลังตรวจสอบ Token กับ LINE...");
+  try{
+   const result=await api("line-token-check");
+   const msg=result.valid?"✅ "+result.message+(result.botName?" · Bot: "+result.botName:""):"❌ "+(result.message||"Token ไม่ผ่านการตรวจสอบ");
+   say("lineTokenStatus",msg,!result.valid);
+  }catch(e){say("lineTokenStatus","ตรวจสอบไม่ได้: "+e.message,true)}
+  finally{b.disabled=false}
+ });
  $("linePreview").addEventListener("click",preview);
  $("lineCapacitySave").addEventListener("click",saveCapacity);
  $("lineCapacity").addEventListener("input",()=>{invalidate();say("lineStatus","กรอบเวลามีการเปลี่ยนแปลง กรุณาบันทึกแล้วดูตัวอย่างใหม่")});
