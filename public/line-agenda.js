@@ -70,6 +70,34 @@
  $("linePreview").addEventListener("click",preview);
  $("lineSend").addEventListener("click",send);
  $("lineGroupSave").addEventListener("click",saveGroup);
+
+ let candidate="";
+ async function checkGroup(){
+  candidate="";$("lineApproveGroup").disabled=true;
+  say("lineCandidateStatus","กำลังตรวจสอบกลุ่มที่รับจาก LINE...");
+  try{
+   const data=await api("line-status");
+   if(data.candidate){
+    candidate=data.candidate;
+    $("lineApproveGroup").disabled=false;
+    say("lineCandidateStatus","พบกลุ่มจาก LINE: "+candidate+" · กลุ่มที่ใช้อยู่: "+(data.group||"ยังไม่เชื่อม")+" · ตรวจสอบว่าเพิ่งเพิ่ม Bot ในกลุ่ม SVS จริงก่อนยืนยัน");
+   }else say("lineCandidateStatus","ยังไม่พบกลุ่ม: โปรดตรวจสอบ Webhook URL และพิมพ์ /svs-connect ใน LINE กลุ่ม");
+  }catch(e){say("lineCandidateStatus","ไม่สามารถตรวจสอบ LINE กลุ่ม: "+e.message,true)}
+ }
+ async function approveGroup(){
+  if(!candidate)return;
+  if(!window.confirm("ยืนยันเลือกกลุ่ม LINE "+candidate+" สำหรับรับข้อความสรุปวาระ SVS จริง?"))return;
+  $("lineApproveGroup").disabled=true;
+  try{
+   const data=await api("line-group-approve",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({confirmCandidate:candidate})});
+   say("lineCandidateStatus","✅ เชื่อมกลุ่ม "+data.group+" แล้ว · กรุณาดูตัวอย่างข้อความใหม่");
+   invalidate();
+  }catch(e){say("lineCandidateStatus","เชื่อมกลุ่มไม่สำเร็จ: "+e.message,true)}
+  finally{candidate=""}
+ }
+ $("lineCheckGroup").addEventListener("click",checkGroup);
+ $("lineApproveGroup").addEventListener("click",approveGroup);
+
  const panel=$("lineAgendaPanel");panel.addEventListener("toggle",()=>{if(panel.open)dates()});
  window.svsLineDatesUpdated=()=>{if(panel.open){const current=$("lineDate").value;dates();if($("lineDate").value!==current)invalidate()}};
 })();
