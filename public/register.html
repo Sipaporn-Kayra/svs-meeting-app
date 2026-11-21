@@ -6,11 +6,17 @@
 <main>
 <div id="loadStatus" class="notice" role="status">กำลังโหลดข้อมูลสำหรับลงทะเบียน...</div><div id="userForm" class="hidden">
 <section class="panel"><h2>1. ข้อมูลผู้เข้าร่วม</h2><label>ชื่อผู้ลงทะเบียน<select id="employee"></select></label><label>สถานะการเข้าร่วม</label><div class="row"><label><input type="radio" name="attendance" value="เข้าร่วม" checked> เข้าร่วม</label><label><input type="radio" name="attendance" value="ไม่เข้าร่วม"> ไม่เข้าร่วม</label></div><div id="dateBlock"><p class="muted">เลือกวันที่เข้าร่วมได้มากกว่า 1 วัน</p><div id="dates"></div></div></section>
+<section class="panel" id="editRegistrationPanel"><h2>✏️ แก้ไขข้อมูลที่เคยลงทะเบียน</h2>
+<p class="muted">หลังลงทะเบียนสำเร็จ ระบบจะแสดงรหัสแก้ไขส่วนตัว ให้เก็บรหัสนี้ไว้ หากต้องการแก้ไขข้อมูลภายหลังจะต้องเลือกชื่อเดิมและกรอกรหัสนี้ หากไม่มีรหัสกรุณาติดต่อ Admin</p>
+<label>รหัสแก้ไขส่วนตัว<input id="editReceipt" autocomplete="off" spellcheck="false" placeholder="วางรหัสแก้ไขที่ได้รับหลังลงทะเบียน"></label>
+<div class="row"><button id="restoreRegistration" class="secondary" type="button">โหลดข้อมูลเดิมเพื่อแก้ไข</button><button id="newRegistration" class="secondary" type="button">กลับไปกรอกข้อมูลใหม่</button></div>
+<p id="editStatus" role="status"></p>
+</section>
 <div id="participantFields">
 <section class="panel"><h2>2. อาหารและเครื่องดื่ม</h2><p class="muted">เมนูและรูปภาพอ้างอิงตามวันที่เลือก · สามารถเลือกอาหารหลายรายการตามรายการที่เปิดให้เลือก</p><div id="menuDays"></div></section>
 <section class="panel"><h2>3. เสนอวาระประชุม</h2><p class="muted">เพิ่มได้หลายหัวข้อ พร้อมหมวดหมู่ วันที่นำเสนอ และระยะเวลา</p><div id="agendaItems"></div><button class="secondary" id="addAgenda" type="button">+ เพิ่มวาระประชุม</button></section>
 </div>
-<section class="panel"><h2>4. ตรวจสอบและส่งข้อมูล</h2><p class="muted">ข้อมูลจะบันทึกลง Google Sheets จริง โปรดตรวจสอบชื่อและวันที่ก่อนส่ง หากกดซ้ำจะเกิดรายการซ้ำได้</p><button id="submit" type="button">ยืนยันการลงทะเบียน</button><p id="submitStatus" role="status"></p></section>
+<section class="panel"><h2>4. ตรวจสอบและส่งข้อมูล</h2><p class="muted">ข้อมูลจะบันทึกลง Google Sheets จริง โปรดตรวจสอบชื่อและวันที่ก่อนส่ง หากกดซ้ำจะเกิดรายการซ้ำได้</p><button id="submit" type="button">ยืนยันการลงทะเบียน</button><p id="submitStatus" role="status"></p><div id="receiptResult" class="notice good hidden"><strong>รหัสแก้ไขส่วนตัว (กรุณาคัดลอกเก็บไว้)</strong><input id="receiptOutput" readonly autocomplete="off" spellcheck="false"><button id="copyReceipt" class="secondary" type="button">คัดลอกรหัสแก้ไข</button><p class="muted">รหัสนี้ใช้แก้ไขข้อมูลที่คุณส่งแล้ว ไม่ควรส่งให้ผู้อื่น หากทำหายกรุณาติดต่อ Admin</p></div></section>
 </div>
 <div class="footer"><a href="/">Admin Dashboard</a> · SVS Meeting</div>
 </main><script src="/user.js"></script></body></html>
