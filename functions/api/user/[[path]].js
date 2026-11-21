@@ -95,7 +95,7 @@ async function ensureReceiptHeaders(env,token,headers){
 }
 function priorForName(records,name,dates){
  const dateSet=new Set(dates);
- return records.filter(r=>r.v[1]===name&&(dateSet.has(r.v[3])||(r.v[2]==="ไม่เข้าร่วม"&&r.v[3]==="-"&&dateSet.has(r.v[14]||""))));
+ return records.filter(r=>r.v[1]===name&&(dateSet.has(r.v[3])||(r.v[2]==="ไม่เข้าร่วม"&&r.v[3]==="-")));
 }
 function matchesByReceipt(records,name,receiptHash){
  return records.filter(r=>r.v[1]===name&&r.v[10]===receiptHash&&r.v[11]);
@@ -178,6 +178,7 @@ export async function onRequest({request,env,params}){
   const existing=priorForName(sheet.records,name,dates);
   const requestId=clean(body.requestId);
   if(!validRequestId(requestId))return output({error:"กรุณาโหลดหน้าแบบฟอร์มใหม่แล้วลองอีกครั้ง"},400);
+  // Google Sheets alone does not offer an atomic uniqueness constraint; sequential duplicates are blocked, but concurrent races need a serialized write service.
   const own=previousHash?matchesByReceipt(sheet.records,name,previousHash):[];
   const editing=own.length>0;
   if(previousHash&&!editing)return output({error:"รหัสแก้ไขไม่ถูกต้อง หรือไม่พบข้อมูลเดิมของคุณ"},403);
