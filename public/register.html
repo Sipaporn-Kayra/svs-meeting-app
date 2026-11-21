@@ -16,6 +16,7 @@
 <section class="panel"><h2>2. อาหารและเครื่องดื่ม</h2><p class="muted">เมนูและรูปภาพอ้างอิงตามวันที่เลือก · สามารถเลือกอาหารหลายรายการตามรายการที่เปิดให้เลือก</p><div id="menuDays"></div></section>
 <section class="panel"><h2>3. เสนอวาระประชุม</h2><p class="muted">เพิ่มได้หลายหัวข้อ พร้อมหมวดหมู่ วันที่นำเสนอ และระยะเวลา</p><div id="agendaItems"></div><button class="secondary" id="addAgenda" type="button">+ เพิ่มวาระประชุม</button></section>
 </div>
+<section class="panel" id="securityPanel" hidden><h2>🛡️ ตรวจสอบความปลอดภัย</h2><p class="muted">ยืนยันว่าเป็นผู้ใช้งานจริงก่อนส่งหรือแก้ไขข้อมูล โดยไม่ต้องใช้รหัสผ่าน</p><div id="turnstileBox"></div><p id="turnstileStatus" class="muted" role="status"></p></section>
 <section class="panel"><h2>4. ตรวจสอบและส่งข้อมูล</h2><p class="muted">ข้อมูลจะบันทึกลง Google Sheets จริง โปรดตรวจสอบชื่อและวันที่ก่อนส่ง หากกดซ้ำจะเกิดรายการซ้ำได้</p><button id="submit" type="button">ยืนยันการลงทะเบียน</button><p id="submitStatus" role="status"></p><div id="receiptResult" class="notice good hidden"><strong>รหัสแก้ไขส่วนตัว (กรุณาคัดลอกเก็บไว้)</strong><input id="receiptOutput" readonly autocomplete="off" spellcheck="false"><button id="copyReceipt" class="secondary" type="button">คัดลอกรหัสแก้ไข</button><p class="muted">รหัสนี้ใช้แก้ไขข้อมูลที่คุณส่งแล้ว ไม่ควรส่งให้ผู้อื่น หากทำหายกรุณาติดต่อ Admin</p></div></section>
 </div>
 <div class="footer"><a href="/">Admin Dashboard</a> · SVS Meeting</div>
