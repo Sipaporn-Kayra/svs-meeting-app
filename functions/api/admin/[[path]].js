@@ -109,11 +109,14 @@ async function menuSettings(env,token){
  const byKey=new Map(raw.slice(1).filter(r=>r[0]).map(r=>[r[0],r[1]||""]));
  const split=t=>String(t||"").split(",").map(v=>v.trim()).filter(Boolean);
  const dates=split(byKey.get("Global_Dates")),days={};
- for(const day of dates){
+ // Keep previous meeting menus visible in Admin even after Global_Dates changes.
+ // Never reopen an archived date: only 'dates' is used for active registration.
+ const historyDates=[...new Set([...dates,...[...byKey.keys()].map(k=>/^(?:Lunch|Drink|LunchImage|DrinkImage|LunchBanner|DrinkBanner)_(\\d{4}-\\d{2}-\\d{2})$/.exec(k)?.[1]).filter(Boolean)])].sort();
+ for(const day of historyDates){
   const getMap=kind=>{try{const o=JSON.parse(byKey.get((kind==="food"?"LunchImage_":"DrinkImage_")+day)||"{}");return o&&typeof o==="object"&&!Array.isArray(o)?o:{}}catch{return {}}};
   days[day]={food:split(byKey.get("Lunch_"+day)),drink:split(byKey.get("Drink_"+day)),foodImages:getMap("food"),drinkImages:getMap("drink"),foodBanner:byKey.get("LunchBanner_"+day)||"",drinkBanner:byKey.get("DrinkBanner_"+day)||""};
  }
- return {raw,dates,days};
+ return {raw,dates,historyDates,days};
 }
 async function saveImageMapping(env,input){
  const date=String(input.date||""),kind=String(input.kind||""),menu=String(input.menu||""),url=String(input.url??"");
@@ -220,7 +223,7 @@ export async function onRequest({request,env,params}){
    if(route==="menu-config"&&request.method==="GET"){
      const token=await googleToken(env);
      const data=await menuSettings(env,token);
-     return json({dates:data.dates,days:data.days});
+     return json({dates:data.dates,historyDates:data.historyDates,days:data.days});
    }
    if(route==="menu-save"&&request.method==="POST"){
      const body=await request.json().catch(()=>({}));
