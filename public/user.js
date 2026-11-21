@@ -16,12 +16,19 @@ function cardChoice(name,group,mode,imgSrc){
  else l.append(el("div","image-fallback",group.includes("food")?"🍱":"🥤"));
  l.append(inp,el("span","option-name",name));return l;
 }
+function bannerView(url,description){
+ if(typeof url!=="string"||!(url.startsWith("https://")||/^\/api\/menu-image\/[a-f0-9]{32}\.(jpg|png|webp)$/.test(url)))return null;
+ const holder=el("div","menu-banner"),image=el("img");image.src=url;image.alt=description;image.loading="lazy";image.referrerPolicy="no-referrer";
+ image.onerror=()=>holder.remove();holder.append(image);return holder;
+}
 function menuFields(day){
  const c=conf.days[day],box=el("div","date-card");box.dataset.day=day;box.append(el("div","date-heading","📅 "+day));
  box.append(el("h3","","🍱 อาหาร"));
+ const foodBanner=bannerView(c.foodBanner,"รูปรวมอาหารสำหรับวันที่ "+day);if(foodBanner)box.append(foodBanner);
  const foods=el("div","options");if(!c.food.length)foods.append(el("p","muted","ยังไม่มีเมนูอาหารสำหรับวันนี้"));
  for(const name of c.food)foods.append(cardChoice(name,"food-"+day,"checkbox",c.foodImages[name]));
  box.append(foods,el("h3","","🥤 เครื่องดื่ม"));
+ const drinkBanner=bannerView(c.drinkBanner,"รูปรวมเครื่องดื่มสำหรับวันที่ "+day);if(drinkBanner)box.append(drinkBanner);
  const drinks=el("div","options");if(!c.drinks.length)drinks.append(el("p","muted","ยังไม่มีเมนูเครื่องดื่มสำหรับวันนี้"));
  for(const name of c.drinks)drinks.append(cardChoice(name,"drink-"+day,"radio",c.drinkImages[name]));
  box.append(drinks);
