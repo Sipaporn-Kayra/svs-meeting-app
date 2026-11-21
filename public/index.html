@@ -7,9 +7,23 @@
 <section><div class="row"><label>เลือกวันที่ประชุม<select id="date"><option value="">รวมทุกวัน</option></select></label><div style="flex:0"><button id="refresh">↻ Refresh ข้อมูลล่าสุด</button></div></div><p class="muted" id="fetched"></p></section>
 <div class="grid kpi-grid"><section>👥 ผู้เข้าร่วม<div class="number" id="participants">—</div></section><section>🍱 จำนวนอาหาร<div class="number" id="meals">—</div></section><section>🥤 จำนวนเครื่องดื่ม<div class="number" id="drinks">—</div></section><section>📋 วาระประชุม<div class="number" id="agendas">—</div></section></div>
 <details class="collapsible-panel"><summary>รายการวาระประชุมจาก Google Sheets <span class="muted">คลิกเพื่อขยาย/ย่อ</span></summary><section><h2>ข้อมูลต้นฉบับ · รายการวาระ</h2><p class="muted">Presenter มาจากคอลัมน์ Name · ข้อมูลส่วนนี้อ่านจากระบบจริงและไม่เขียนทับร่างที่ Admin แก้ไข</p><div class="scroll"><table><thead><tr><th>วันที่</th><th>หัวข้อ</th><th>Presenter</th><th>เวลา (นาที)</th></tr></thead><tbody id="agendaRows"></tbody></table></div></section></details>
+<section id="roundManager" class="panel">
+<h2>📅 ตั้งค่ารอบประชุม</h2><p class="muted">กำหนดวันประชุมและรายการเมนูสำหรับรอบที่เปิดรับลงทะเบียน ข้อมูลลงทะเบียนย้อนหลังยังอยู่ใน Google Sheets ไม่ถูกลบ</p>
+<div class="row"><label>วันที่ประชุม<input id="roundDate" type="date"></label><label>วิธีเปิดรอบ<select id="roundMode"><option value="replace">ใช้วันที่นี้เป็นรอบเปิดลงทะเบียน (แทนวันเดิม)</option><option value="add">เพิ่มวันที่นี้เข้าไปในรอบที่เปิดอยู่</option></select></label></div>
+<div class="row"><label>รายการอาหาร (หนึ่งชื่อเมนูต่อบรรทัด)<textarea id="roundFood" rows="5" placeholder="เมนูอาหาร 1&#10;เมนูอาหาร 2"></textarea></label><label>รายการเครื่องดื่ม (หนึ่งชื่อเมนูต่อบรรทัด)<textarea id="roundDrink" rows="5" placeholder="เครื่องดื่ม 1&#10;เครื่องดื่ม 2"></textarea></label></div>
+<p class="muted">เลือกวันเดิมเพื่อดึงเมนูที่ตั้งไว้ หรือเลือกวันใหม่เพื่อเตรียมรายการใหม่ · หลีกเลี่ยงการเปลี่ยนวันหรือชื่อเมนูหลังเริ่มรับลงทะเบียน หากมีผู้กรอกแล้ว</p>
+<div class="row"><button id="roundSave" type="button">บันทึกและเปิดรอบประชุม</button><button id="roundReload" type="button" class="secondary">โหลดค่าล่าสุด</button></div>
+<p id="roundNotice" class="muted" role="status"></p>
+</section>
 <section id="menuImageManager" class="panel">
 <h2>🖼️ จัดการรูปอาหารและเครื่องดื่ม</h2>
-<p class="muted">Admin สามารถเลือกไฟล์จากเครื่อง (แนะนำ) หรือวาง URL รูปภาพแทนได้ ไม่ต้องแก้ JSON ใน Google Sheets</p>
+<p class="muted">Admin สามารถเลือกไฟล์จากเครื่อง (แนะนำ) หรือวาง URL รูปภาพแทนได้ ไม่ต้องแก้ JSON ใน Google Sheets</p><p class="muted">รูปเฉพาะเมนูใช้ได้เหมือนเดิม และสามารถเลือกรูปรวมสำหรับอาหารหรือเครื่องดื่มทั้งหมวดให้แสดงด้านบนรายการได้</p>
+<div class="panel"><h3>รูปภาพรวมของหมวดอาหารหรือเครื่องดื่ม</h3>
+<div class="row"><label>วันที่<select id="bannerDate"><option value="">เลือกวันที่</option></select></label><label>หมวด<select id="bannerKind"><option value="food">🍱 อาหาร</option><option value="drink">🥤 เครื่องดื่ม</option></select></label></div>
+<div class="row"><label>อัปโหลดรูปรวม (JPG, PNG, WEBP ≤ 2MB)<input id="bannerFile" type="file" accept="image/jpeg,image/png,image/webp"></label><label>หรือวาง HTTPS URL รูปรวม<input id="bannerUrl" type="url" placeholder="https://..."></label></div>
+<div class="row"><button id="bannerUpload" type="button">อัปโหลดรูปรวม</button><button id="bannerSaveUrl" type="button" class="secondary">บันทึก URL รูปรวม</button><button id="bannerRemove" type="button" class="secondary">ลบรูปรวม</button></div>
+<img id="bannerPreview" alt="ตัวอย่างภาพรวม" hidden style="max-width:100%;max-height:220px;object-fit:contain;border-radius:12px">
+<p id="bannerNotice" role="status" class="muted"></p></div>
 <div class="row"><label>วันที่ประชุม<select id="imageDate"><option value="">เลือกวันที่</option></select></label><label>ประเภท<select id="imageKind"><option value="food">🍱 อาหาร</option><option value="drink">🥤 เครื่องดื่ม</option></select></label><label>ชื่อเมนู<select id="imageMenu"><option value="">เลือกเมนู</option></select></label></div>
 <div class="row"><div><label>อัปโหลดรูปจากเครื่อง (JPG, PNG, WEBP ไม่เกิน 2 MB)<input id="imageFile" type="file" accept="image/jpeg,image/png,image/webp"></label></div><div><label>หรือวาง URL รูปภาพ (https://)<input id="imageUrl" type="url" placeholder="https://..."></label></div></div>
 <div class="row"><button id="imageUploadSave">อัปโหลดและบันทึกให้เมนู</button><button id="imageUrlSave" class="secondary">บันทึก URL แทน</button><button id="imageRemove" class="secondary">ลบรูปของเมนูนี้</button></div>
@@ -49,4 +63,4 @@ $('logout').onclick=async()=>{try{await api('logout',{method:'POST'})}finally{sn
 $('refresh').onclick=load;$('date').onchange=()=>{window.svsEditorDateChanging?.();load()};
 $('exportSnapshot').onclick=()=>{if(!snapshot)return;const b=new Blob([JSON.stringify(snapshot,null,2)],{type:'application/json'}),url=URL.createObjectURL(b),a=document.createElement('a');a.href=url;a.download='svs-sheet-snapshot.json';a.click();URL.revokeObjectURL(url)};
 api('session').then(()=>{show(true);load()}).catch(()=>show(false));
-</script><script src="/editor.js"></script><script src="/menu-manager.js"></script></body></html>
+</script><script src="/editor.js"></script><script src="/menu-manager.js"></script><script src="/round-manager.js"></script></body></html>
