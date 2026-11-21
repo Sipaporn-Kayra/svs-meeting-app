@@ -3,7 +3,7 @@
 // Admin authentication remains separate. Limit abuse with Cloudflare rate limiting before broad sharing.
 const utf8=new TextEncoder();
 const noStore={"Cache-Control":"no-store","Content-Type":"application/json; charset=utf-8","X-Content-Type-Options":"nosniff"};
-function output(data,status=200){return new Response(JSON.stringify(data),{status,headers:noStore})}
+function output(data,status=200,headers={}){return new Response(JSON.stringify(data),{status,headers:{...noStore,...headers}})}
 function base64url(bytes){let s="";for(const b of bytes)s+=String.fromCharCode(b);return btoa(s).replace(/=/g,"").replace(/\+/g,"-").replace(/\//g,"_")}
 async function accessToken(env){
  const sa=JSON.parse(env.GOOGLE_SERVICE_ACCOUNT_JSON||"{}");
@@ -143,6 +143,41 @@ async function replaceRegistration(env,token,oldRecords,newRows){
  requests.push({appendCells:{sheetId,rows:newRows.map(asCellRow),fields:"userEnteredValue"}});
  await sheetRequest(env,token,"POST",":batchUpdate",{requests});
 }
+
+// Optional KV-backed rate limit (best effort, KV is eventually consistent).
+// For strict edge enforcement add a WAF rule on a Cloudflare-managed custom domain.
+async function checkRate(request,env,route){
+ if(!env.SVS_RATE_KV||typeof env.SVS_RATE_KV.get!=="function")return null;
+ const ip=request.headers.get("CF-Connecting-IP")||"unknown";
+ const encoded=await crypto.subtle.digest("SHA-256",utf8.encode(ip));
+ const key="svs:user:"+route+":"+Array.from(new Uint8Array(encoded),b=>b.toString(16).padStart(2,"0")).join("");
+ const now=Date.now(),duration=300000,maximum=route==="config"?60:route==="restore"?15:10;
+ const saved=await env.SVS_RATE_KV.get(key,"json");
+ const current=saved&&typeof saved==="object"&&Number(saved.until)>now?saved:{count:0,until:now+duration};
+ if(current.count>=maximum)return output({error:"มีการใช้งานถี่เกินไป กรุณารอสักครู่แล้วลองใหม่"},429,{"Retry-After":String(Math.ceil((current.until-now)/1000))});
+ await env.SVS_RATE_KV.put(key,JSON.stringify({count:current.count+1,until:current.until}),{expirationTtl:Math.max(60,Math.ceil((current.until-now)/1000))});
+ return null;
+}
+async function verifyTurnstile(body,request,env){
+ // Require both env vars together; neither is sent to the browser except the public site key.
+ if(!env.TURNSTILE_SITE_KEY&&!env.TURNSTILE_SECRET_KEY)return {ok:true};
+ if(!env.TURNSTILE_SITE_KEY||!env.TURNSTILE_SECRET_KEY)return {ok:false,status:503,error:"การตรวจสอบความปลอดภัยยังตั้งค่าไม่ครบ กรุณาติดต่อ Admin"};
+ const token=body.turnstileToken;
+ if(typeof token!=="string"||token.length<1||token.length>2048)return {ok:false,status:403,error:"กรุณายืนยัน Turnstile ก่อนส่งข้อมูล"};
+ let data;
+ try{
+  const params=new URLSearchParams({secret:env.TURNSTILE_SECRET_KEY,response:token,idempotency_key:crypto.randomUUID()});
+  const ip=request.headers.get("CF-Connecting-IP");if(ip)params.set("remoteip",ip);
+  const resp=await fetch("https://challenges.cloudflare.com/turnstile/v0/siteverify",{method:"POST",headers:{"Content-Type":"application/x-www-form-urlencoded"},body:params});
+  if(!resp.ok)return {ok:false,status:503,error:"ระบบตรวจสอบความปลอดภัยไม่พร้อมใช้งาน"};
+  data=await resp.json();
+ }catch{return {ok:false,status:503,error:"ไม่สามารถเชื่อมต่อระบบตรวจสอบความปลอดภัย"}}
+ const host=new URL(request.url).hostname;
+ if(data.success!==true||data.hostname!==host||data.action!=="svs_user"){
+  return {ok:false,status:403,error:"การยืนยัน Turnstile ไม่สำเร็จหรือหมดอายุ กรุณาลองอีกครั้ง"};
+ }
+ return {ok:true};
+}
 export async function onRequest({request,env,params}){
  const route=Array.isArray(params.path)?params.path.join("/"):params.path||"";
  if(request.method!=="POST"||!["config","submit","restore"].includes(route))return output({error:"Not found"},404);
@@ -151,14 +186,17 @@ export async function onRequest({request,env,params}){
  const fetchSite=request.headers.get("Sec-Fetch-Site");
  if(fetchSite&&fetchSite!=="same-origin"&&fetchSite!=="none")return output({error:"Cross-site request denied"},403);
  if(!(request.headers.get("Content-Type")||"").toLowerCase().startsWith("application/json"))return output({error:"Invalid content type"},415);
+ const limited=await checkRate(request,env,route);if(limited)return limited;
  if(Number(request.headers.get("Content-Length")||0)>60000)return output({error:"Payload too large"},413);
  try{
   const raw=await request.text();if(raw.length>60000)return output({error:"Payload too large"},413);
   const body=JSON.parse(raw||"{}");
   if(!env.GOOGLE_SHEET_ID)throw Error("Sheet ID missing");
+  if(route!=="config"){const challenge=await verifyTurnstile(body,request,env);if(!challenge.ok)return output({error:challenge.error},challenge.status)}
+  if(route==="config"&&Boolean(env.TURNSTILE_SITE_KEY)!==Boolean(env.TURNSTILE_SECRET_KEY))return output({error:"Turnstile configuration incomplete"},503);
   const token=await accessToken(env);
   const config=await readConfig(env,token);
-  if(route==="config")return output(config);
+  if(route==="config")return output({...config,turnstileSiteKey:env.TURNSTILE_SITE_KEY||""});
   const sheet=await registrationSheet(env,token);
   const name=clean(body.name),receipt=clean(body.receipt);
   const previousHash=validReceipt(receipt)?await hashReceipt(receipt):"";
