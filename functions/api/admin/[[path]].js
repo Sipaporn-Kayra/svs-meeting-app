@@ -316,6 +316,19 @@ async function lineSaveGroup(env,body){
  await writeSettings(env,token,current,{LINE_GroupId:groupId});
  return {ok:true,connected:true,group:maskGroup(groupId)};
 }
+async function lineTokenCheck(env){
+ const token=env.LINE_CHANNEL_ACCESS_TOKEN;
+ if(!token)return {ok:false,configured:false,valid:false,reason:"missing",message:"ไม่พบ LINE_CHANNEL_ACCESS_TOKEN ใน Environment นี้"};
+ // This endpoint does not send a message and never returns the token or upstream response body.
+ try{
+  const response=await fetch("https://api.line.me/v2/bot/info",{method:"GET",headers:{"Authorization":"Bearer "+token.trim()},cache:"no-store"});
+  if(response.ok){
+   const info=await response.json();
+   return {ok:true,configured:true,valid:true,botName:String(info.displayName||""),message:"LINE ยอมรับ Token ของ Bot นี้แล้ว"};
+  }
+  return {ok:false,configured:true,valid:false,lineHttp:response.status,reason:response.status===401?"unauthorized":response.status===403?"forbidden":"upstream",message:"LINE ไม่ยอมรับคำขอตรวจ Token (HTTP "+response.status+")"};
+ }catch(e){console.error("LINE token check request failed",String(e?.name||"Error"));return {ok:false,configured:true,valid:false,reason:"network",message:"ไม่สามารถเชื่อมต่อ LINE เพื่อตรวจสอบ Token ได้"}}
+}
 async function sendLineSummary(env,body){
  const date=String(body.date||""),text=String(body.expectedText||""),requestId=String(body.requestId||"");
  if(!/^[0-9a-f-]{36}$/i.test(requestId)||!text||text.length>4000)return {http:400,error:"กรุณาดูตัวอย่างก่อนกดส่ง"};
@@ -389,6 +402,7 @@ export async function onRequest({request,env,params}){
      const result=await changeRegistrationStatus(env,body);
      return json(result,result.http||200);
    }
+   if(route==="line-token-check"&&request.method==="GET")return json(await lineTokenCheck(env));
    if(route==="line-preview"&&request.method==="GET"){
      const result=await linePreview(env,new URL(request.url).searchParams.get("date")||"");
      return json(result,result.http||200);
