@@ -56,7 +56,7 @@ function validate(payload,conf){
  }
  const choices=payload.choices&&typeof payload.choices==="object"?payload.choices:{};
  const rows=[],timestamp=new Date().toISOString();
- if(attendance==="ไม่เข้าร่วม")return [[timestamp,name,attendance,"-","-","-","-","-",0,"-"]];
+ if(attendance==="ไม่เข้าร่วม")return conf.dates.map(day=>[timestamp,name,attendance,day,"-","-","-","-",0,"-"]);
  for(const date of selected){
   const opts=conf.days[date],c=choices[date]||{};
   const food=Array.isArray(c.food)?[...new Set(c.food.map(clean))]:[];
@@ -95,7 +95,7 @@ async function ensureReceiptHeaders(env,token,headers){
 }
 function priorForName(records,name,dates){
  const dateSet=new Set(dates);
- return records.filter(r=>r.v[1]===name&&(dateSet.has(r.v[3])||(r.v[2]==="ไม่เข้าร่วม"&&r.v[3]==="-")));
+ return records.filter(r=>r.v[1]===name&&dateSet.has(r.v[3]));
 }
 function matchesByReceipt(records,name,receiptHash){
  return records.filter(r=>r.v[1]===name&&r.v[10]===receiptHash&&r.v[11]);
