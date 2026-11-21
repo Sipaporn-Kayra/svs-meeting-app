@@ -33,8 +33,9 @@
   try{
    const data=await api("line-preview?date="+encodeURIComponent(date));
    last=data;requestId=crypto.randomUUID();$("lineMessage").value=data.text;
+   $("lineCapacity").value=data.capacityMinutes??"";
    say("lineStatus","วาระ "+data.topicCount+" หัวข้อ / "+data.totalMinutes+" นาที · LINE "+(data.configured?"ตั้งค่า Token แล้ว":"ยังไม่มี Token")+" · กลุ่ม "+(data.connected?data.group:"ยังไม่เชื่อม"));
-   $("lineSend").disabled=!(data.configured&&data.connected);
+   $("lineSend").disabled=!(data.configured&&data.connected&&data.capacityMinutes!==null);
   }catch(e){say("lineStatus","ดูตัวอย่างไม่สำเร็จ: "+e.message,true)}
   finally{$("linePreview").disabled=false;loading=false}
  }
@@ -53,6 +54,18 @@
    invalidate();
   }
  }
+ async function saveCapacity(){
+  const date=$("lineDate").value,raw=$("lineCapacity").value.trim(),minutes=Number(raw);
+  if(!date){say("lineStatus","กรุณาเลือกวันที่ประชุมก่อน",true);return}
+  if(!raw||!Number.isInteger(minutes)||minutes<1||minutes>1440){say("lineStatus","กรุณาระบุเวลานำเสนอทั้งหมด 1–1440 นาที",true);return}
+  $("lineCapacitySave").disabled=true;
+  invalidate();
+  try{
+   await api("line-capacity-save",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({date,minutes})});
+   say("lineStatus","✅ บันทึกกรอบเวลานำเสนอ "+minutes+" นาทีแล้ว กรุณากดดูตัวอย่างข้อความล่าสุด");
+  }catch(e){say("lineStatus","บันทึกกรอบเวลาไม่สำเร็จ: "+e.message,true)}
+  finally{$("lineCapacitySave").disabled=false}
+ }
  async function saveGroup(){
   const value=$("lineGroupId").value.trim();
   if(!/^C[0-9a-f]{32}$/i.test(value)){say("lineGroupStatus","Group ID ไม่ถูกต้อง (ขึ้นต้น C และอักษรฐานสิบหก 32 ตัว)",true);return}
@@ -68,6 +81,8 @@
  }
  $("lineDate").addEventListener("change",()=>{invalidate();say("lineStatus","วันที่เปลี่ยนแล้ว กรุณาดูตัวอย่างใหม่")});
  $("linePreview").addEventListener("click",preview);
+ $("lineCapacitySave").addEventListener("click",saveCapacity);
+ $("lineCapacity").addEventListener("input",()=>{invalidate();say("lineStatus","กรอบเวลามีการเปลี่ยนแปลง กรุณาบันทึกแล้วดูตัวอย่างใหม่")});
  $("lineSend").addEventListener("click",send);
  $("lineGroupSave").addEventListener("click",saveGroup);
 
