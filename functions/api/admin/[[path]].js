@@ -72,6 +72,8 @@ function parseData(data,date){
  const users=records(data[0]?.values||[]);
  const settings=records(data[1]?.values||[]);
  const globalDates=(settings.find(r=>r.Key==="Global_Dates")?.Value||"").split(",").map(s=>s.trim()).filter(Boolean);
+ const historicalDates=users.map(r=>r.Date).filter(d=>/^\d{4}-\d{2}-\d{2}$/.test(d));
+ const allDates=[...new Set([...globalDates,...historicalDates])].sort();
  const filtered=users.filter(r=>r.Attendance==="เข้าร่วม"&&(!date||r.Date===date));
  const agendas=[],people=new Set(),food=new Map(),drinks=new Map();
  const occurrences=new Map();
@@ -85,7 +87,7 @@ function parseData(data,date){
      agendas.push({source_id:stableKey(identity+"|"+count),date:r.Date,presenter:r.Name||"",topic:r.Topic,minutes:Math.max(0,Number(r.Time)||0),category:r.Category||"อื่น ๆ"});
    }
  }
- return {dates:globalDates,selected_date:date||null,participants:people.size,agendas,food:[...food].map(([name,count])=>({name,count})),drinks:[...drinks].map(([name,count])=>({name,count})),fetched_at:new Date().toISOString()};
+ return {dates:allDates,active_dates:globalDates,selected_date:date||null,participants:people.size,agendas,food:[...food].map(([name,count])=>({name,count})),drinks:[...drinks].map(([name,count])=>({name,count})),fetched_at:new Date().toISOString()};
 }
 
 const imageKinds=new Set(["food","drink"]);
@@ -109,7 +111,7 @@ async function menuSettings(env,token){
  const dates=split(byKey.get("Global_Dates")),days={};
  for(const day of dates){
   const getMap=kind=>{try{const o=JSON.parse(byKey.get((kind==="food"?"LunchImage_":"DrinkImage_")+day)||"{}");return o&&typeof o==="object"&&!Array.isArray(o)?o:{}}catch{return {}}};
-  days[day]={food:split(byKey.get("Lunch_"+day)),drink:split(byKey.get("Drink_"+day)),foodImages:getMap("food"),drinkImages:getMap("drink")};
+  days[day]={food:split(byKey.get("Lunch_"+day)),drink:split(byKey.get("Drink_"+day)),foodImages:getMap("food"),drinkImages:getMap("drink"),foodBanner:byKey.get("LunchBanner_"+day)||"",drinkBanner:byKey.get("DrinkBanner_"+day)||""};
  }
  return {raw,dates,days};
 }
@@ -132,6 +134,43 @@ async function saveImageMapping(env,input){
   await sheetCall(env,token,"POST","/values/"+encodeURIComponent("'Settings'!A:B")+":append?valueInputOption=RAW&insertDataOption=INSERT_ROWS",{majorDimension:"ROWS",values:[[key,serial]]});
  }
  return {ok:true,date,kind,menu,url};
+}
+
+async function writeSettings(env,token,current,updates){
+ const records=current.raw||[],entries=Object.entries(updates),changes=[],newRows=[];
+ for(const [key,value] of entries){
+  const index=records.findIndex((row,i)=>i>0&&row[0]===key);
+  if(index>=0)changes.push({range:"'Settings'!B"+(index+1),majorDimension:"ROWS",values:[[value]]});
+  else newRows.push([key,value]);
+ }
+ if(changes.length)await sheetCall(env,token,"POST","/values:batchUpdate",{valueInputOption:"RAW",data:changes});
+ if(newRows.length)await sheetCall(env,token,"POST","/values/"+encodeURIComponent("'Settings'!A:B")+":append?valueInputOption=RAW&insertDataOption=INSERT_ROWS",{majorDimension:"ROWS",values:newRows});
+}
+function validDate(s){
+ return /^\d{4}-\d{2}-\d{2}$/.test(s)&&!Number.isNaN(Date.parse(s+"T12:00:00Z"))&&new Date(s+"T12:00:00Z").toISOString().slice(0,10)===s;
+}
+function validMenus(v){
+ return Array.isArray(v)&&v.length<=40&&v.every(x=>typeof x==="string"&&x.trim().length>0&&x.trim().length<=120&&!x.includes(",")&&!x.includes("\n"))&&new Set(v.map(x=>x.trim())).size===v.length;
+}
+async function saveMeetingRound(env,input){
+ const date=String(input.date||""),mode=String(input.mode||""),food=input.food,drink=input.drink;
+ if(!validDate(date)||!["replace","add"].includes(mode)||!validMenus(food)||!validMenus(drink)||!food.length||!drink.length)return {status:400,error:"กรุณากรอกวันที่และรายการอาหาร/เครื่องดื่มให้ถูกต้อง (ห้ามมีเครื่องหมายจุลภาคในชื่อเมนู)"};
+ const token=await googleToken(env,true),current=await menuSettings(env,token);
+ const dates=mode==="replace"?[date]:[...new Set([...current.dates,date])].sort();
+ if(dates.length>10)return {status:400,error:"เปิดลงทะเบียนได้สูงสุด 10 วันต่อครั้ง"};
+ // Preserve per-day image maps and all historical registration rows. Only update active dates and menus.
+ const updates={Global_Dates:dates.join(","),["Lunch_"+date]:food.map(x=>x.trim()).join(","),["Drink_"+date]:drink.map(x=>x.trim()).join(",")};
+ await writeSettings(env,token,current,updates);
+ return {ok:true,date,dates};
+}
+async function saveBanner(env,input){
+ const date=String(input.date||""),kind=String(input.kind||""),url=String(input.url??"");
+ if(!validDate(date)||!imageKinds.has(kind)||!validImageUrl(url))return {status:400,error:"วันที่หรือ URL รูปรวมไม่ถูกต้อง"};
+ const token=await googleToken(env,true),current=await menuSettings(env,token);
+ if(!current.dates.includes(date))return {status:400,error:"กรุณาเลือกวันที่เปิดลงทะเบียนอยู่"};
+ const key=(kind==="food"?"LunchBanner_":"DrinkBanner_")+date;
+ await writeSettings(env,token,current,{[key]:url});
+ return {ok:true,date,kind,url};
 }
 async function uploadMenuImage(request,env){
  if(!env.MENU_IMAGES||typeof env.MENU_IMAGES.put!=="function")return {status:503,error:"ยังไม่ได้เชื่อม R2 Bucket ที่ชื่อ MENU_IMAGES"};
@@ -168,6 +207,16 @@ export async function onRequest({request,env,params}){
    if(route==="logout"&&request.method==="POST")return json({ok:true},200,{"Set-Cookie":cookie("",0)});
    if(!await authenticated(request,env))return json({error:"Unauthorized"},401);
    if(route==="session"&&request.method==="GET")return json({authenticated:true});
+   if(route==="round-save"&&request.method==="POST"){
+     const data=await request.json().catch(()=>({}));
+     const result=await saveMeetingRound(env,data);
+     return json(result,result.status||200);
+   }
+   if(route==="banner-save"&&request.method==="POST"){
+     const data=await request.json().catch(()=>({}));
+     const result=await saveBanner(env,data);
+     return json(result,result.status||200);
+   }
    if(route==="menu-config"&&request.method==="GET"){
      const token=await googleToken(env);
      const data=await menuSettings(env,token);
