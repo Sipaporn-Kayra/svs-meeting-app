@@ -16,6 +16,19 @@
 <div class="scroll"><table><thead><tr><th>วันที่</th><th>ชื่อ</th><th>เวลาแจ้ง</th><th>สถานะ</th><th>อาหาร/เครื่องดื่ม</th><th>วาระ</th><th>จัดการ</th></tr></thead><tbody id="registrationRows"></tbody></table></div>
 <p class="muted">ก่อนยกเลิก โปรดตรวจสอบข้อมูลให้ตรงชุดและกดยืนยัน ระบบจะไม่ลบแถวถาวร และสามารถกู้คืนได้เมื่อไม่มีชุดที่ใช้งานอยู่ซ้ำชื่อและวันเดียวกัน</p>
 </section></details>
+<details class="collapsible-panel" id="lineAgendaPanel"><summary>💬 แจ้งความคืบหน้าวาระเข้า LINE <span class="muted">Admin ตรวจข้อความก่อนส่ง · ไม่ส่งอัตโนมัติ</span></summary><section>
+<h2>LINE กลุ่มทีม SVS — สรุปวาระที่เสนอ</h2>
+<p class="muted">ข้อความจะรวมจำนวนวาระ ระยะเวลารวม และจำนวนแยกหมวดหมู่จาก Google Sheets โดยไม่นับชุดลงทะเบียนที่ยกเลิกแล้ว ไม่แสดงชื่อผู้เสนอหรือข้อมูลอาหาร</p>
+<div class="row"><label>วันที่ประชุม<select id="lineDate"><option value="">เลือกวันประชุม</option></select></label><button class="secondary" id="linePreview" type="button">↻ ดูตัวอย่างข้อความล่าสุด</button></div>
+<label>ตัวอย่างข้อความที่จะส่ง<textarea id="lineMessage" rows="13" readonly style="width:100%;border:1px solid #c8d3e1;border-radius:8px;padding:12px;font:inherit;resize:vertical" placeholder="เลือกวันประชุมและกดดูตัวอย่าง"></textarea></label>
+<p id="lineStatus" class="muted" role="status"></p>
+<div class="row"><button id="lineSend" type="button" disabled>ส่งข้อความเข้า LINE กลุ่ม</button></div>
+<details><summary>ตั้งค่า Group ID สำหรับ Admin (ครั้งแรก)</summary><p class="muted">เพิ่ม LINE Official Account เข้ากลุ่มก่อน แล้วนำ Group ID ที่ตรวจสอบจาก LINE Messaging API webhook มาใส่ ข้อมูลจะเก็บใน Google Sheets Settings โดยเข้าถึงผ่าน Admin API เท่านั้น ห้ามนำ Channel Access Token มาใส่ช่องนี้</p>
+<label>LINE Group ID<input id="lineGroupId" autocomplete="off" spellcheck="false" placeholder="C ตามด้วยอักขระ 32 ตัว"></label>
+<button id="lineGroupSave" class="secondary" type="button">บันทึก Group ID</button>
+<p id="lineGroupStatus" class="muted" role="status"></p>
+</details>
+</section></details>
 <section id="roundManager" class="panel">
 <h2>📅 ตั้งค่ารอบประชุม</h2><p class="muted">กำหนดวันประชุมและรายการเมนูสำหรับรอบที่เปิดรับลงทะเบียน ข้อมูลลงทะเบียนย้อนหลังยังอยู่ใน Google Sheets ไม่ถูกลบ</p>
 <div class="row"><label>เลือกดูเมนูของรอบที่เคยตั้งค่า<select id="roundHistory"><option value="">เลือกรอบเก่าหรือปัจจุบัน</option></select></label><label>วันที่ประชุม<input id="roundDate" type="date"></label><label>วิธีเปิดรอบ<select id="roundMode"><option value="replace">ใช้วันที่นี้เป็นรอบเปิดลงทะเบียน (แทนวันเดิม)</option><option value="add">เพิ่มวันที่นี้เข้าไปในรอบที่เปิดอยู่</option></select></label></div>
@@ -73,4 +86,4 @@ $('logout').onclick=async()=>{try{await api('logout',{method:'POST'})}finally{sn
 $('refresh').onclick=load;$('date').onchange=()=>{window.svsEditorDateChanging?.();load()};
 $('exportSnapshot').onclick=()=>{if(!snapshot)return;const b=new Blob([JSON.stringify(snapshot,null,2)],{type:'application/json'}),url=URL.createObjectURL(b),a=document.createElement('a');a.href=url;a.download='svs-sheet-snapshot.json';a.click();URL.revokeObjectURL(url)};
 api('session').then(()=>{show(true);load()}).catch(()=>show(false));
-</script><script src="/registration-manager.js"></script><script src="/editor.js"></script><script src="/menu-manager.js"></script><script src="/round-manager.js"></script></body></html>
+</script><script src="/line-agenda.js"></script><script src="/registration-manager.js"></script><script src="/editor.js"></script><script src="/menu-manager.js"></script><script src="/round-manager.js"></script></body></html>
