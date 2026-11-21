@@ -23,7 +23,7 @@
 <label>ตัวอย่างข้อความที่จะส่ง<textarea id="lineMessage" rows="13" readonly style="width:100%;border:1px solid #c8d3e1;border-radius:8px;padding:12px;font:inherit;resize:vertical" placeholder="เลือกวันประชุมและกดดูตัวอย่าง"></textarea></label>
 <p id="lineStatus" class="muted" role="status"></p>
 <div class="row"><button id="lineSend" type="button" disabled>ส่งข้อความเข้า LINE กลุ่ม</button></div>
-<details><summary>ตั้งค่า Group ID สำหรับ Admin (ครั้งแรก)</summary><p class="muted">เพิ่ม LINE Official Account เข้ากลุ่มก่อน แล้วนำ Group ID ที่ตรวจสอบจาก LINE Messaging API webhook มาใส่ ข้อมูลจะเก็บใน Google Sheets Settings โดยเข้าถึงผ่าน Admin API เท่านั้น ห้ามนำ Channel Access Token มาใส่ช่องนี้</p>
+<details><summary>เชื่อม LINE กลุ่ม (ครั้งแรก)</summary><p class="muted">เมื่อเพิ่ม LINE Official Account เข้ากลุ่ม หรือพิมพ์ /svs-connect ใน LINE กลุ่ม ระบบจะรับ Group ID ผ่าน webhook ที่ตรวจสอบลายเซ็นจาก LINE โดยยังไม่ส่งข้อความใด ๆ</p><div class="row"><button id="lineCheckGroup" class="secondary" type="button">ตรวจสอบกลุ่มที่พบ</button><button id="lineApproveGroup" type="button" disabled>ยืนยันใช้กลุ่มนี้</button></div><p id="lineCandidateStatus" class="muted" role="status"></p><p class="muted">หากจำเป็นต้องกำหนด Group ID ด้วยตนเอง (สำหรับผู้ดูแลระบบที่ตรวจสอบค่าแล้ว) สามารถใส่ด้านล่างได้ ข้อมูลจะเก็บใน Google Sheets Settings โดยเข้าถึงผ่าน Admin API เท่านั้น ห้ามนำ Channel Access Token มาใส่ช่องนี้</p>
 <label>LINE Group ID<input id="lineGroupId" autocomplete="off" spellcheck="false" placeholder="C ตามด้วยอักขระ 32 ตัว"></label>
 <button id="lineGroupSave" class="secondary" type="button">บันทึก Group ID</button>
 <p id="lineGroupStatus" class="muted" role="status"></p>
