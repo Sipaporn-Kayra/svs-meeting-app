@@ -250,26 +250,46 @@ async function changeRegistrationStatus(env,body){
 }
 
 const lineCats=["สถานการณ์โรคระบาด/Case study","งานทดลองเวชภัณฑ์/คัดเลือกเวชภัณฑ์","Project","อื่นๆ"];
-function makeLineSummary(date,agendas){
+function makeLineSummary(date,agendas,capacityMinutes){
  const topics=agendas.filter(a=>a.date===date);
- const groups=lineCats.map((name,i)=>({name,count:topics.filter(a=>(lineCats.includes(a.category)?a.category:lineCats[3])===name).length}));
+ const groups=lineCats.map(name=>({name,count:topics.filter(a=>(lineCats.includes(a.category)?a.category:lineCats[3])===name).length}));
  const totalMinutes=topics.reduce((n,a)=>n+Math.max(0,Number(a.minutes)||0),0);
- const lines=["📋 SVS Meeting | อัปเดตวาระที่เสนอ","วันประชุม: "+date.split("-").reverse().join("/"),"จำนวนวาระ: "+topics.length+" หัวข้อ","เวลานำเสนอรวม: "+totalMinutes+" นาที","","แยกตามประเภท:",...groups.map(g=>"• "+g.name+": "+g.count+" หัวข้อ"),"","หมายเหตุ: เป็นวาระที่เสนอ ยังไม่ใช่ตารางที่ Admin อนุมัติแล้ว","สมาชิกสามารถเพิ่มหรือแก้ไขวาระผ่าน SVS Meeting Portal"];
- return {text:lines.join("\n"),topicCount:topics.length,totalMinutes,categories:groups};
+ const remainingMinutes=Number.isInteger(capacityMinutes)?capacityMinutes-totalMinutes:null;
+ const remainingLine=remainingMinutes===null?
+  "เวลานำเสนอที่เหลืออยู่: ยังไม่ได้กำหนดเวลาทั้งหมด":
+  remainingMinutes>=0?
+   "เวลานำเสนอที่เหลืออยู่: "+remainingMinutes+" นาที (จากทั้งหมด "+capacityMinutes+" นาที)":
+   "เวลานำเสนอที่เหลืออยู่: 0 นาที (จากทั้งหมด "+capacityMinutes+" นาที) — เกินเวลา "+Math.abs(remainingMinutes)+" นาที";
+ const lines=[
+  "📋 SVS Meeting | อัปเดตวาระที่เสนอ",
+  "วันประชุม: "+date.split("-").reverse().join("/"),
+  "จำนวนวาระ: "+topics.length+" หัวข้อ",
+  "เวลานำเสนอรวม: "+totalMinutes+" นาที",
+  remainingLine,
+  "",
+  "แยกตามประเภท:",
+  ...groups.map(g=>"• "+g.name+": "+g.count+" หัวข้อ"),
+  "",
+  "หมายเหตุ: เป็นวาระที่เสนอ ยังไม่ใช่ตารางที่ Admin อนุมัติแล้ว",
+  "สมาชิกสามารถเพิ่มหรือแก้ไขวาระผ่าน SVS Meeting Portal"
+ ];
+ return {text:lines.join("\n"),topicCount:topics.length,totalMinutes,capacityMinutes,remainingMinutes,categories:groups};
 }
 async function lineSettings(env){
  const token=await googleToken(env);
  const settings=await menuSettings(env,token);
  const values=Object.fromEntries(settings.raw.slice(1).filter(r=>r[0]).map(r=>[r[0],r[1]||""]));
- return {groupId:values.LINE_GroupId||"",candidate:values.LINE_CandidateGroupId||"",settings};
+ return {groupId:values.LINE_GroupId||"",candidate:values.LINE_CandidateGroupId||"",settings,values};
 }
 function maskGroup(value){return value?value.slice(0,4)+"••••"+value.slice(-5):""}
 async function linePreview(env,date){
  if(!validDate(date))return {http:400,error:"กรุณาเลือกวันที่ประชุม"};
  const result=parseData(await readSheets(env),date);
  if(!result.active_dates.includes(date))return {http:409,error:"สามารถแจ้ง LINE ได้เฉพาะรอบประชุมที่เปิดลงทะเบียนอยู่"};
- const summary=makeLineSummary(date,result.agendas);
  const linked=await lineSettings(env);
+ const saved=linked.values["LINE_AgendaCapacity_"+date]||"";
+ const capacityMinutes=/^[1-9][0-9]{0,3}$/.test(saved)?Number(saved):null;
+ const summary=makeLineSummary(date,result.agendas,capacityMinutes);
  return {ok:true,date,...summary,configured:Boolean(env.LINE_CHANNEL_ACCESS_TOKEN),connected:/^C[0-9a-f]{32}$/i.test(linked.groupId),group:maskGroup(linked.groupId)};
 }
 async function lineApproveCandidate(env,body){
@@ -279,6 +299,14 @@ async function lineApproveCandidate(env,body){
  const token=await googleToken(env,true);
  await writeSettings(env,token,current.settings,{LINE_GroupId:current.candidate});
  return {ok:true,connected:true,group:maskGroup(current.candidate)};
+}
+async function lineSaveCapacity(env,body){
+ const date=String(body.date||""),minutes=Number(body.minutes);
+ if(!validDate(date)||!Number.isInteger(minutes)||minutes<1||minutes>1440)return {http:400,error:"กรุณาระบุกรอบเวลานำเสนอ 1–1440 นาที"};
+ const token=await googleToken(env,true),settings=await menuSettings(env,token);
+ if(!settings.dates.includes(date))return {http:409,error:"กรุณาเลือกวันที่เปิดลงทะเบียนอยู่"};
+ await writeSettings(env,token,settings,{["LINE_AgendaCapacity_"+date]:String(minutes)});
+ return {ok:true,date,minutes};
 }
 async function lineSaveGroup(env,body){
  const groupId=String(body.groupId||"").trim();
@@ -296,6 +324,7 @@ async function sendLineSummary(env,body){
  if(!/^C[0-9a-f]{32}$/i.test(group))return {http:503,error:"ยังไม่ได้เชื่อม Group ID"};
  const summary=await linePreview(env,date);
  if(!summary.ok)return summary;
+ if(summary.capacityMinutes===null)return {http:409,error:"กรุณากำหนดเวลานำเสนอทั้งหมดก่อนส่ง LINE"};
  if(text!==summary.text)return {http:409,error:"วาระมีการเปลี่ยนแปลง กรุณาโหลดตัวอย่างใหม่"};
  const response=await fetch("https://api.line.me/v2/bot/message/push",{
   method:"POST",
@@ -370,6 +399,10 @@ export async function onRequest({request,env,params}){
    }
    if(route==="line-group-approve"&&request.method==="POST"){
      const result=await lineApproveCandidate(env,await request.json().catch(()=>({})));
+     return json(result,result.http||200);
+   }
+   if(route==="line-capacity-save"&&request.method==="POST"){
+     const result=await lineSaveCapacity(env,await request.json().catch(()=>({})));
      return json(result,result.http||200);
    }
    if(route==="line-group-save"&&request.method==="POST"){
