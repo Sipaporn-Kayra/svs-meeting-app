@@ -22,7 +22,7 @@
 7. Verify Admin shows **one attendee and only one set of meals/drinks**, while topics match the updated registration; registration old rows were replaced.
 8. Attempt to load the record with a wrong receipt. Expect denial; no data returned.
 9. Verify a participant cannot use a different name with the same receipt.
-10. Test the **ไม่เข้าร่วม** status and subsequent duplicate detection with care; this status is name-level because the existing schema does not store a specific declined meeting day.
+10. Test the **ไม่เข้าร่วม** status and subsequent duplicate detection with care; new declined submissions create a dated record for each currently open day; historical legacy declined rows with Date = "-" remain untouched and cannot be reliably matched to a future meeting date.
 
 ## Known limits & release blockers
 - **Concurrent write race:** Google Sheets has no atomic unique key. Two submissions for the same person/date at nearly the exact same instant may both pass the pre-insert duplicate lookup. Solve with Durable Objects (serialized per participant/date) or another transactional store before claiming strict concurrency-safe prevention.
