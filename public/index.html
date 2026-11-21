@@ -7,6 +7,15 @@
 <section><div class="row"><label>เลือกวันที่ประชุม<select id="date"><option value="">รวมทุกวัน</option></select></label><div style="flex:0"><button id="refresh">↻ Refresh ข้อมูลล่าสุด</button></div></div><p class="muted" id="fetched"></p></section>
 <div class="grid kpi-grid"><section>👥 ผู้เข้าร่วม<div class="number" id="participants">—</div></section><section>🍱 จำนวนอาหาร<div class="number" id="meals">—</div></section><section>🥤 จำนวนเครื่องดื่ม<div class="number" id="drinks">—</div></section><section>📋 วาระประชุม<div class="number" id="agendas">—</div></section></div>
 <details class="collapsible-panel"><summary>รายการวาระประชุมจาก Google Sheets <span class="muted">คลิกเพื่อขยาย/ย่อ</span></summary><section><h2>ข้อมูลต้นฉบับ · รายการวาระ</h2><p class="muted">Presenter มาจากคอลัมน์ Name · ข้อมูลส่วนนี้อ่านจากระบบจริงและไม่เขียนทับร่างที่ Admin แก้ไข</p><div class="scroll"><table><thead><tr><th>วันที่</th><th>หัวข้อ</th><th>Presenter</th><th>เวลา (นาที)</th></tr></thead><tbody id="agendaRows"></tbody></table></div></section></details>
+<details id="registrationManagement" class="collapsible-panel"><summary>🧾 จัดการข้อมูลลงทะเบียนและตรวจสอบรายการซ้ำ <span class="muted">Admin เท่านั้น · กู้คืนได้</span></summary><section>
+<h2>ตรวจสอบชุดลงทะเบียน</h2>
+<p class="muted">หนึ่งชุดอาจมีหลายแถวจากหลายวาระประชุม รายการที่ยกเลิกจะยังอยู่ใน Google Sheets แต่ไม่ถูกนับในยอดสรุปของ Admin</p>
+<div class="row"><label>ค้นหาชื่อ<input id="registrationSearch" type="search" placeholder="พิมพ์ชื่อผู้ลงทะเบียน"></label><label>วันที่ประชุม<select id="registrationDate"><option value="">ทุกวันที่</option></select></label><label>สถานะ<select id="registrationFilter"><option value="all">ทั้งหมด</option><option value="duplicate">อาจซ้ำ</option><option value="active">ใช้งานอยู่</option><option value="archived">ยกเลิกแล้ว</option></select></label></div>
+<div class="row"><button class="secondary" type="button" id="registrationReload">↻ โหลดรายการล่าสุด</button><div class="muted" id="registrationCount" style="align-self:center"></div></div>
+<p id="registrationNotice" class="muted" role="status"></p>
+<div class="scroll"><table><thead><tr><th>วันที่</th><th>ชื่อ</th><th>เวลาแจ้ง</th><th>สถานะ</th><th>อาหาร/เครื่องดื่ม</th><th>วาระ</th><th>จัดการ</th></tr></thead><tbody id="registrationRows"></tbody></table></div>
+<p class="muted">ก่อนยกเลิก โปรดตรวจสอบข้อมูลให้ตรงชุดและกดยืนยัน ระบบจะไม่ลบแถวถาวร และสามารถกู้คืนได้เมื่อไม่มีชุดที่ใช้งานอยู่ซ้ำชื่อและวันเดียวกัน</p>
+</section></details>
 <section id="roundManager" class="panel">
 <h2>📅 ตั้งค่ารอบประชุม</h2><p class="muted">กำหนดวันประชุมและรายการเมนูสำหรับรอบที่เปิดรับลงทะเบียน ข้อมูลลงทะเบียนย้อนหลังยังอยู่ใน Google Sheets ไม่ถูกลบ</p>
 <div class="row"><label>เลือกดูเมนูของรอบที่เคยตั้งค่า<select id="roundHistory"><option value="">เลือกรอบเก่าหรือปัจจุบัน</option></select></label><label>วันที่ประชุม<input id="roundDate" type="date"></label><label>วิธีเปิดรอบ<select id="roundMode"><option value="replace">ใช้วันที่นี้เป็นรอบเปิดลงทะเบียน (แทนวันเดิม)</option><option value="add">เพิ่มวันที่นี้เข้าไปในรอบที่เปิดอยู่</option></select></label></div>
@@ -63,4 +72,4 @@ $('logout').onclick=async()=>{try{await api('logout',{method:'POST'})}finally{sn
 $('refresh').onclick=load;$('date').onchange=()=>{window.svsEditorDateChanging?.();load()};
 $('exportSnapshot').onclick=()=>{if(!snapshot)return;const b=new Blob([JSON.stringify(snapshot,null,2)],{type:'application/json'}),url=URL.createObjectURL(b),a=document.createElement('a');a.href=url;a.download='svs-sheet-snapshot.json';a.click();URL.revokeObjectURL(url)};
 api('session').then(()=>{show(true);load()}).catch(()=>show(false));
-</script><script src="/editor.js"></script><script src="/menu-manager.js"></script><script src="/round-manager.js"></script></body></html>
+</script><script src="/registration-manager.js"></script><script src="/editor.js"></script><script src="/menu-manager.js"></script><script src="/round-manager.js"></script></body></html>
