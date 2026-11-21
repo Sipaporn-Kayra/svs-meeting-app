@@ -1,12 +1,47 @@
 (()=>{
 const $=id=>document.getElementById(id);
 const cats=["สถานการณ์โรคระบาด/Case study","งานทดลองเวชภัณฑ์/คัดเลือกเวชภัณฑ์","Project","อื่นๆ"];
-let conf=null,submitted=false,editingReceipt="",editingRevision="",requestId=crypto.randomUUID();
+let conf=null,submitted=false,editingReceipt="",editingRevision="",requestId=crypto.randomUUID(),turnstileWidget=null,turnstileRequired=false;
 function el(tag,cls,txt){const x=document.createElement(tag);if(cls)x.className=cls;if(txt!==undefined)x.textContent=txt;return x}
 function select(options){const x=el("select");for(const v of options){const o=el("option","",v);o.value=v;x.append(o)}return x}
 function label(name,control){const l=el("label");l.append(document.createTextNode(name),control);return l}
 function status(id,msg,error=false){const x=$(id);x.textContent=msg;x.className=error?"notice error":"notice good"}
 async function call(route,payload){let r;try{r=await fetch("/api/user/"+route,{method:"POST",headers:{"Content-Type":"application/json"},cache:"no-store",body:JSON.stringify(payload)})}catch{throw Error("เชื่อมต่อ API ไม่สำเร็จ (Network) กรุณาตรวจสอบอินเทอร์เน็ต")}const contentType=r.headers.get("content-type")||"";if(!contentType.includes("application/json"))throw Error("User API ตอบกลับ HTTP "+r.status+" โดยไม่ใช่ JSON — กรุณาตรวจสอบ Cloudflare Deployment และ Functions");const j=await r.json().catch(()=>({}));if(!r.ok)throw Error(j.error||("User API HTTP "+r.status));return j}
+
+async function configureTurnstile(siteKey){
+ turnstileRequired=Boolean(siteKey);
+ if(!turnstileRequired){$("securityPanel").hidden=true;return}
+ $("securityPanel").hidden=false;
+ $("turnstileStatus").textContent="กำลังโหลดการยืนยันความปลอดภัย...";
+ if(!window.turnstile){
+  await new Promise((resolve,reject)=>{
+   const script=document.createElement("script");script.src="https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit";
+   script.async=true;script.defer=true;script.onload=resolve;script.onerror=()=>reject(Error("ไม่สามารถโหลด Turnstile ได้"));
+   document.head.append(script);
+  });
+ }
+ if(!window.turnstile)throw Error("Turnstile ยังไม่พร้อมใช้งาน");
+ turnstileWidget=window.turnstile.render("#turnstileBox",{
+  sitekey:siteKey,action:"svs_user",theme:"auto",
+  callback:()=>{$("turnstileStatus").textContent="✅ ยืนยันความปลอดภัยแล้ว"},
+  "expired-callback":()=>{$("turnstileStatus").textContent="การยืนยันหมดอายุ กรุณาทำอีกครั้ง"},
+  "error-callback":()=>{$("turnstileStatus").textContent="การยืนยันไม่สำเร็จ กรุณาลองอีกครั้ง"}
+ });
+ $("turnstileStatus").textContent="โปรดยืนยัน Turnstile ก่อนส่งข้อมูล";
+}
+function getTurnstileToken(){
+ if(!turnstileRequired)return "";
+ if(!window.turnstile||turnstileWidget===null)throw Error("Turnstile ยังไม่พร้อม กรุณาลองใหม่");
+ const token=window.turnstile.getResponse(turnstileWidget);
+ if(!token)throw Error("กรุณายืนยัน Turnstile ก่อนส่งข้อมูล");
+ return token;
+}
+function resetTurnstile(){
+ if(turnstileRequired&&window.turnstile&&turnstileWidget!==null){
+  window.turnstile.reset(turnstileWidget);
+  $("turnstileStatus").textContent="กรุณายืนยัน Turnstile อีกครั้งสำหรับการส่งข้อมูลครั้งถัดไป";
+ }
+}
 function selectedDates(){return [...$("dates").querySelectorAll("input:checked")].map(x=>x.value)}
 function attending(){return document.querySelector('input[name="attendance"]:checked')?.value==="เข้าร่วม"}
 function cardChoice(name,group,mode,imgSrc){
@@ -60,6 +95,7 @@ function setup(data){
  $("employee").replaceChildren(...data.employees.map(v=>{const o=el("option","",v);o.value=v;return o}));
  $("dates").replaceChildren(...data.dates.map(day=>{const l=el("label","date-choice"),i=el("input");i.type="checkbox";i.value=day;i.onchange=refreshDays;l.append(i,document.createTextNode(day));return l}));
  $("userForm").classList.remove("hidden");$("loadStatus").classList.add("hidden");updateAttendance();
+ configureTurnstile(data.turnstileSiteKey||"").catch(e=>{$("turnstileStatus").textContent="ไม่สามารถโหลดระบบความปลอดภัย: "+e.message;});
 }
 async function init(){try{const data=await call("config",{});setup(data)}catch(e){const notice=$("loadStatus");notice.textContent="โหลดแบบฟอร์มไม่สำเร็จ: "+e.message;notice.className="notice error"}}
 init();
@@ -88,14 +124,14 @@ $("restoreRegistration").onclick=async()=>{
  if(!/^[a-f0-9]{48}$/.test(receipt)){status("editStatus","กรุณากรอกรหัสแก้ไขส่วนตัวให้ครบ",true);return}
  btn.disabled=true;
  try{
-  const result=await call("restore",{name,receipt});
+  const result=await call("restore",{name,receipt,turnstileToken:getTurnstileToken()});
   editingReceipt=receipt;editingRevision=result.revision;submitted=false;requestId=crypto.randomUUID();
   restoreForm(result.registration);
   $("submit").disabled=false;$("submit").textContent="บันทึกการแก้ไข";
   $("receiptResult").classList.add("hidden");
   status("editStatus","✅ โหลดข้อมูลเดิมแล้ว แก้ไขรายการได้และกดบันทึก");
  }catch(e){status("editStatus",e.message,true)}
- finally{btn.disabled=false}
+ finally{resetTurnstile();btn.disabled=false}
 };
 $("newRegistration").onclick=()=>{
  editingReceipt="";editingRevision="";submitted=false;requestId=crypto.randomUUID();
@@ -135,6 +171,6 @@ $("submit").onclick=async()=>{
   minutes:Number(item.querySelector(".agenda-minutes").value)
  })).filter(a=>a.topic);
  $("submit").disabled=true;status("submitStatus","กำลังบันทึกข้อมูล...");
- try{const res=await call("submit",{name,attendance,dates,choices,agenda,receipt:editingReceipt,revision:editingRevision,requestId});submitted=true;editingReceipt=res.receipt||editingReceipt;editingRevision=res.revision||editingRevision;status("submitStatus",res.updated?"✅ บันทึกการแก้ไขสำเร็จแล้ว":"✅ ลงทะเบียนสำเร็จ "+res.rows+" แถว · กรุณาเก็บรหัสแก้ไขด้านล่างไว้");$("submit").textContent="บันทึกแล้ว";if(res.receipt){$("receiptOutput").value=res.receipt;$("editReceipt").value=res.receipt;$("receiptResult").classList.remove("hidden")}}catch(e){status("submitStatus",e.message,true);$("submit").disabled=false}
+ try{const res=await call("submit",{name,attendance,dates,choices,agenda,receipt:editingReceipt,revision:editingRevision,requestId,turnstileToken:getTurnstileToken()});submitted=true;editingReceipt=res.receipt||editingReceipt;editingRevision=res.revision||editingRevision;status("submitStatus",res.updated?"✅ บันทึกการแก้ไขสำเร็จแล้ว":"✅ ลงทะเบียนสำเร็จ "+res.rows+" แถว · กรุณาเก็บรหัสแก้ไขด้านล่างไว้");$("submit").textContent="บันทึกแล้ว";if(res.receipt){$("receiptOutput").value=res.receipt;$("editReceipt").value=res.receipt;$("receiptResult").classList.remove("hidden")}}catch(e){status("submitStatus",e.message,true);$("submit").disabled=false}finally{resetTurnstile()}
 };
 })();
