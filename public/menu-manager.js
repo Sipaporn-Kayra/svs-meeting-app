@@ -78,6 +78,7 @@
   }catch(e){msg("บันทึกรูปไม่สำเร็จ: "+e.message,true)}
   finally{btn.disabled=false}
  };
+ window.addEventListener("svs-menu-settings-updated",()=>{if(!$("dashboard").classList.contains("hidden"))loadConfig()});
  // Initialize only after an authenticated admin session. Keep the setup hidden inside #dashboard.
  const originalShow=window.svsMenuManagerLoaded;
  window.svsMenuManagerLoaded=()=>{originalShow?.();loadConfig()};
