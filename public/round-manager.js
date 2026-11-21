@@ -13,9 +13,10 @@
  const fill=(id,choices,placeholder)=>{const select=$(id),old=select.value;select.replaceChildren();const blank=document.createElement("option");blank.value="";blank.textContent=placeholder;select.append(blank);for(const value of choices){const opt=document.createElement("option");opt.value=value;opt.textContent=value;select.append(opt)}if(choices.includes(old))select.value=old};
  function updateRound(){
   const date=$("roundDate").value,day=data?.days?.[date];
+  $("roundHistory").value=(data?.historyDates||[]).includes(date)?date:"";
   $("roundFood").value=(day?.food||[]).join("\n");
   $("roundDrink").value=(day?.drink||[]).join("\n");
-  notice("roundNotice",day?"กำลังแก้ไขเมนูของวันที่เลือก":"วันใหม่: กรุณากรอกรายการอาหารและเครื่องดื่ม");
+  notice("roundNotice",day?(data.dates.includes(date)?"กำลังแสดงเมนูของรอบที่เปิดลงทะเบียน":"กำลังดูเมนูย้อนหลัง (ยังไม่ได้เปิดรอบเก่าให้ลงทะเบียน)"):"วันใหม่: กรุณากรอกรายการอาหารและเครื่องดื่ม");
  }
  function bannerInfo(){const date=$("bannerDate").value,kind=$("bannerKind").value,day=data?.days?.[date];return {date,kind,url:kind==="food"?(day?.foodBanner||""):(day?.drinkBanner||"")}}
  function showBanner(){
@@ -32,6 +33,7 @@
    data=await api("menu-config");
    const dates=data.dates||[];
    fill("bannerDate",dates,"เลือกวันประชุม");
+   fill("roundHistory",data.historyDates||dates,"เลือกรอบเก่าหรือปัจจุบัน");
    const roundDate=$("roundDate");
    if(!roundDate.value&&dates.length)roundDate.value=dates[0];
    updateRound();showBanner();
@@ -41,6 +43,7 @@
   finally{loading=false}
  }
  $("roundDate").addEventListener("change",updateRound);
+ $("roundHistory").addEventListener("change",()=>{if($("roundHistory").value){$("roundDate").value=$("roundHistory").value;updateRound()}});
  $("bannerDate").addEventListener("change",showBanner);
  $("bannerKind").addEventListener("change",showBanner);
  $("roundReload").onclick=reload;
