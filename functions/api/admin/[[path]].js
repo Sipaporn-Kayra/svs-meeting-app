@@ -341,7 +341,7 @@ async function sendLineSummary(env,body){
  if(text!==summary.text)return {http:409,error:"วาระมีการเปลี่ยนแปลง กรุณาโหลดตัวอย่างใหม่"};
  const response=await fetch("https://api.line.me/v2/bot/message/push",{
   method:"POST",
-  headers:{"Authorization":"Bearer "+env.LINE_CHANNEL_ACCESS_TOKEN,"Content-Type":"application/json","X-Line-Retry-Key":requestId},
+  headers:{"Authorization":"Bearer "+env.LINE_CHANNEL_ACCESS_TOKEN.trim(),"Content-Type":"application/json","X-Line-Retry-Key":requestId},
   body:JSON.stringify({to:group,messages:[{type:"text",text:summary.text}]})
  });
  if(!response.ok){console.error("LINE push HTTP",response.status);return {http:response.status===429?429:502,error:"LINE ส่งข้อความไม่สำเร็จ (HTTP "+response.status+")"}}
