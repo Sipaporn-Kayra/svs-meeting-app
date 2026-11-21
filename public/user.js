@@ -1,7 +1,7 @@
 (()=>{
 const $=id=>document.getElementById(id);
 const cats=["สถานการณ์โรคระบาด/Case study","งานทดลองเวชภัณฑ์/คัดเลือกเวชภัณฑ์","Project","อื่นๆ"];
-let conf=null,submitted=false;
+let conf=null,submitted=false,editingReceipt="",editingRevision="",requestId=crypto.randomUUID();
 function el(tag,cls,txt){const x=document.createElement(tag);if(cls)x.className=cls;if(txt!==undefined)x.textContent=txt;return x}
 function select(options){const x=el("select");for(const v of options){const o=el("option","",v);o.value=v;x.append(o)}return x}
 function label(name,control){const l=el("label");l.append(document.createTextNode(name),control);return l}
@@ -50,7 +50,7 @@ function agendaItem(data={}){
  const remove=el("button","secondary","ลบวาระ");remove.type="button";remove.onclick=()=>wrapper.remove();top.append(remove);wrapper.append(top);
  const topic=el("input");topic.placeholder="เช่น อัปเดตสถานการณ์ PRRS ในพื้นที่";topic.maxLength=250;topic.value=data.topic||"";topic.className="agenda-topic";wrapper.append(label("หัวข้อประชุม",topic));
  const row=el("div","row"),day=select(selectedDates()),category=select(cats),minutes=el("input");
- day.className="agenda-day";category.className="agenda-category";minutes.type="number";minutes.min=1;minutes.max=240;minutes.value=data.minutes||15;minutes.className="agenda-minutes";
+ day.className="agenda-day";category.className="agenda-category";if(data.date&&selectedDates().includes(data.date))day.value=data.date;if(data.category&&cats.includes(data.category))category.value=data.category;minutes.type="number";minutes.min=1;minutes.max=240;minutes.value=data.minutes||15;minutes.className="agenda-minutes";
  row.append(label("วันที่นำเสนอ",day),label("หมวดหมู่วาระ",category),label("ระยะเวลา (นาที)",minutes));wrapper.append(row);
  $("agendaItems").append(wrapper);
 }
@@ -65,6 +65,54 @@ async function init(){try{const data=await call("config",{});setup(data)}catch(e
 init();
 document.querySelectorAll('input[name="attendance"]').forEach(x=>x.onchange=updateAttendance);
 $("addAgenda").onclick=()=>{if(!selectedDates().length){status("submitStatus","กรุณาเลือกวันที่เข้าร่วมก่อนเพิ่มวาระ",true);return}agendaItem()};
+
+function restoreForm(saved){
+ const name=$("employee");name.value=saved.name;
+ document.querySelectorAll('input[name="attendance"]').forEach(el=>el.checked=el.value===saved.attendance);
+ updateAttendance();
+ $("dates").querySelectorAll('input[type="checkbox"]').forEach(el=>el.checked=saved.dates.includes(el.value));
+ refreshDays();
+ for(const panel of $("menuDays").children){
+  const date=panel.dataset.day,c=saved.choices[date]||{};
+  panel.querySelectorAll('input[type="checkbox"],input[type="radio"]').forEach(el=>el.checked=el.type==="checkbox"?(c.food||[]).includes(el.value):el.value===c.drink);
+  for(const field of ["temperature","roast","sweetness","sport"]){
+   const control=panel.querySelector('[data-field="'+field+'"]');
+   if(control&&[...control.options].some(o=>o.value===c[field]))control.value=c[field];
+  }
+ }
+ $("agendaItems").replaceChildren();
+ for(const agenda of saved.agenda)agendaItem(agenda);
+}
+$("restoreRegistration").onclick=async()=>{
+ const name=$("employee").value,receipt=$("editReceipt").value.trim(),btn=$("restoreRegistration");
+ if(!/^[a-f0-9]{48}$/.test(receipt)){status("editStatus","กรุณากรอกรหัสแก้ไขส่วนตัวให้ครบ",true);return}
+ btn.disabled=true;
+ try{
+  const result=await call("restore",{name,receipt});
+  editingReceipt=receipt;editingRevision=result.revision;submitted=false;requestId=crypto.randomUUID();
+  restoreForm(result.registration);
+  $("submit").disabled=false;$("submit").textContent="บันทึกการแก้ไข";
+  $("receiptResult").classList.add("hidden");
+  status("editStatus","✅ โหลดข้อมูลเดิมแล้ว แก้ไขรายการได้และกดบันทึก");
+ }catch(e){status("editStatus",e.message,true)}
+ finally{btn.disabled=false}
+};
+$("newRegistration").onclick=()=>{
+ editingReceipt="";editingRevision="";submitted=false;requestId=crypto.randomUUID();
+ $("editReceipt").value="";$("receiptResult").classList.add("hidden");
+ $("submit").disabled=false;$("submit").textContent="ยืนยันการลงทะเบียน";
+ $("agendaItems").replaceChildren();
+ $("dates").querySelectorAll("input").forEach(input=>input.checked=false);
+ $("menuDays").replaceChildren();
+ document.querySelectorAll('input[name="attendance"]').forEach(el=>el.checked=el.value==="เข้าร่วม");
+ updateAttendance();
+ status("editStatus","เริ่มกรอกข้อมูลใหม่ได้แล้ว");
+};
+$("copyReceipt").onclick=async()=>{
+ const receipt=$("receiptOutput").value;
+ try{await navigator.clipboard.writeText(receipt);status("submitStatus","✅ คัดลอกรหัสแก้ไขแล้ว โปรดเก็บไว้เป็นส่วนตัว")}
+ catch{const node=$("receiptOutput");node.focus();node.select();status("submitStatus","เลือกข้อความรหัสแล้ว กรุณาคัดลอกด้วย Ctrl+C")}
+};
 $("submit").onclick=async()=>{
  if(submitted)return;
  const name=$("employee").value,attendance=attending()?"เข้าร่วม":"ไม่เข้าร่วม",dates=attending()?selectedDates():[];
@@ -87,6 +135,6 @@ $("submit").onclick=async()=>{
   minutes:Number(item.querySelector(".agenda-minutes").value)
  })).filter(a=>a.topic);
  $("submit").disabled=true;status("submitStatus","กำลังบันทึกข้อมูล...");
- try{const res=await call("submit",{name,attendance,dates,choices,agenda});submitted=true;status("submitStatus","✅ บันทึกสำเร็จ "+res.rows+" แถว · ขอบคุณที่ลงทะเบียน");$("submit").textContent="บันทึกแล้ว";}catch(e){status("submitStatus",e.message,true);$("submit").disabled=false}
+ try{const res=await call("submit",{name,attendance,dates,choices,agenda,receipt:editingReceipt,revision:editingRevision,requestId});submitted=true;editingReceipt=res.receipt||editingReceipt;editingRevision=res.revision||editingRevision;status("submitStatus",res.updated?"✅ บันทึกการแก้ไขสำเร็จแล้ว":"✅ ลงทะเบียนสำเร็จ "+res.rows+" แถว · กรุณาเก็บรหัสแก้ไขด้านล่างไว้");$("submit").textContent="บันทึกแล้ว";if(res.receipt){$("receiptOutput").value=res.receipt;$("editReceipt").value=res.receipt;$("receiptResult").classList.remove("hidden")}}catch(e){status("submitStatus",e.message,true);$("submit").disabled=false}
 };
 })();
