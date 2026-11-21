@@ -32,7 +32,7 @@ async function readConfig(env,token){
  const days={};
  for(const day of dates){
    const parseImages=v=>{try{const o=JSON.parse(v||"{}");return o&&typeof o==="object"&&!Array.isArray(o)?o:{}}catch{return {}}};
-   days[day]={food:split(entries["Lunch_"+day]),drinks:split(entries["Drink_"+day]),foodImages:parseImages(entries["LunchImage_"+day]),drinkImages:parseImages(entries["DrinkImage_"+day])};
+   days[day]={food:split(entries["Lunch_"+day]),drinks:split(entries["Drink_"+day]),foodImages:parseImages(entries["LunchImage_"+day]),drinkImages:parseImages(entries["DrinkImage_"+day]),foodBanner:entries["LunchBanner_"+day]||"",drinkBanner:entries["DrinkBanner_"+day]||""};
  }
  return {dates,employees:split(entries.Global_Employees),sport:split(entries.Global_Sport),sweetness:split(entries.Global_Sweetness),roast:split(entries.Global_Roast),temperature:split(entries.Global_Temp),days};
 }
