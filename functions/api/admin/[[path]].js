@@ -261,7 +261,7 @@ async function lineSettings(env){
  const token=await googleToken(env);
  const settings=await menuSettings(env,token);
  const values=Object.fromEntries(settings.raw.slice(1).filter(r=>r[0]).map(r=>[r[0],r[1]||""]));
- return {groupId:values.LINE_GroupId||"",settings};
+ return {groupId:values.LINE_GroupId||"",candidate:values.LINE_CandidateGroupId||"",settings};
 }
 function maskGroup(value){return value?value.slice(0,4)+"••••"+value.slice(-5):""}
 async function linePreview(env,date){
@@ -271,6 +271,14 @@ async function linePreview(env,date){
  const summary=makeLineSummary(date,result.agendas);
  const linked=await lineSettings(env);
  return {ok:true,date,...summary,configured:Boolean(env.LINE_CHANNEL_ACCESS_TOKEN),connected:/^C[0-9a-f]{32}$/i.test(linked.groupId),group:maskGroup(linked.groupId)};
+}
+async function lineApproveCandidate(env,body){
+ const current=await lineSettings(env);
+ if(!/^C[0-9a-f]{32}$/i.test(current.candidate))return {http:409,error:"ยังไม่พบคำขอเชื่อม LINE กลุ่ม"};
+ if(body.confirmCandidate!==maskGroup(current.candidate))return {http:409,error:"กลุ่ม LINE เปลี่ยนแล้ว กรุณาโหลดอีกครั้ง"};
+ const token=await googleToken(env,true);
+ await writeSettings(env,token,current.settings,{LINE_GroupId:current.candidate});
+ return {ok:true,connected:true,group:maskGroup(current.candidate)};
 }
 async function lineSaveGroup(env,body){
  const groupId=String(body.groupId||"").trim();
@@ -354,6 +362,14 @@ export async function onRequest({request,env,params}){
    }
    if(route==="line-preview"&&request.method==="GET"){
      const result=await linePreview(env,new URL(request.url).searchParams.get("date")||"");
+     return json(result,result.http||200);
+   }
+   if(route==="line-status"&&request.method==="GET"){
+     const group=await lineSettings(env);
+     return json({configured:Boolean(env.LINE_CHANNEL_ACCESS_TOKEN),connected:Boolean(group.groupId),group:maskGroup(group.groupId),candidate:maskGroup(group.candidate)});
+   }
+   if(route==="line-group-approve"&&request.method==="POST"){
+     const result=await lineApproveCandidate(env,await request.json().catch(()=>({})));
      return json(result,result.http||200);
    }
    if(route==="line-group-save"&&request.method==="POST"){
