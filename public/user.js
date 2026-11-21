@@ -1,12 +1,12 @@
 (()=>{
 const $=id=>document.getElementById(id);
 const cats=["สถานการณ์โรคระบาด/Case study","งานทดลองเวชภัณฑ์/คัดเลือกเวชภัณฑ์","Project","อื่นๆ"];
-let conf=null,code="",submitted=false;
+let conf=null,submitted=false;
 function el(tag,cls,txt){const x=document.createElement(tag);if(cls)x.className=cls;if(txt!==undefined)x.textContent=txt;return x}
 function select(options){const x=el("select");for(const v of options){const o=el("option","",v);o.value=v;x.append(o)}return x}
 function label(name,control){const l=el("label");l.append(document.createTextNode(name),control);return l}
 function status(id,msg,error=false){const x=$(id);x.textContent=msg;x.className=error?"notice error":"notice good"}
-async function call(route,payload){let r;try{r=await fetch("/api/user/"+route,{method:"POST",headers:{"Content-Type":"application/json"},cache:"no-store",body:JSON.stringify({code,...payload})})}catch{throw Error("เชื่อมต่อ API ไม่สำเร็จ (Network) กรุณาตรวจสอบอินเทอร์เน็ต")}const contentType=r.headers.get("content-type")||"";if(!contentType.includes("application/json"))throw Error("User API ตอบกลับ HTTP "+r.status+" โดยไม่ใช่ JSON — กรุณาตรวจสอบ Cloudflare Deployment และ Functions");const j=await r.json().catch(()=>({}));if(!r.ok)throw Error(j.error||("User API HTTP "+r.status));return j}
+async function call(route,payload){let r;try{r=await fetch("/api/user/"+route,{method:"POST",headers:{"Content-Type":"application/json"},cache:"no-store",body:JSON.stringify(payload)})}catch{throw Error("เชื่อมต่อ API ไม่สำเร็จ (Network) กรุณาตรวจสอบอินเทอร์เน็ต")}const contentType=r.headers.get("content-type")||"";if(!contentType.includes("application/json"))throw Error("User API ตอบกลับ HTTP "+r.status+" โดยไม่ใช่ JSON — กรุณาตรวจสอบ Cloudflare Deployment และ Functions");const j=await r.json().catch(()=>({}));if(!r.ok)throw Error(j.error||("User API HTTP "+r.status));return j}
 function selectedDates(){return [...$("dates").querySelectorAll("input:checked")].map(x=>x.value)}
 function attending(){return document.querySelector('input[name="attendance"]:checked')?.value==="เข้าร่วม"}
 function cardChoice(name,group,mode,imgSrc){
@@ -52,9 +52,10 @@ function setup(data){
  conf=data;
  $("employee").replaceChildren(...data.employees.map(v=>{const o=el("option","",v);o.value=v;return o}));
  $("dates").replaceChildren(...data.dates.map(day=>{const l=el("label","date-choice"),i=el("input");i.type="checkbox";i.value=day;i.onchange=refreshDays;l.append(i,document.createTextNode(day));return l}));
- $("userForm").classList.remove("hidden");$("accessPanel").classList.add("hidden");updateAttendance();
+ $("userForm").classList.remove("hidden");$("loadStatus").classList.add("hidden");updateAttendance();
 }
-$("enter").onclick=async()=>{code=$("accessCode").value.trim();$("enter").disabled=true;try{const data=await call("config",{});setup(data)}catch(e){status("accessStatus",e.message,true)}finally{$("enter").disabled=false}};
+async function init(){try{const data=await call("config",{});setup(data)}catch(e){const notice=$("loadStatus");notice.textContent="โหลดแบบฟอร์มไม่สำเร็จ: "+e.message;notice.className="notice error";$("userForm").classList.remove("hidden")}}
+init();
 document.querySelectorAll('input[name="attendance"]').forEach(x=>x.onchange=updateAttendance);
 $("addAgenda").onclick=()=>{if(!selectedDates().length){status("submitStatus","กรุณาเลือกวันที่เข้าร่วมก่อนเพิ่มวาระ",true);return}agendaItem()};
 $("submit").onclick=async()=>{
