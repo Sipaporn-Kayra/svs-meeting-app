@@ -19,7 +19,7 @@
 <details class="collapsible-panel" id="lineAgendaPanel"><summary>💬 แจ้งความคืบหน้าวาระเข้า LINE <span class="muted">Admin ตรวจข้อความก่อนส่ง · ไม่ส่งอัตโนมัติ</span></summary><section>
 <h2>LINE กลุ่มทีม SVS — สรุปวาระที่เสนอ</h2>
 <p class="muted">ข้อความจะรวมจำนวนวาระ ระยะเวลารวม และจำนวนแยกหมวดหมู่จาก Google Sheets โดยไม่นับชุดลงทะเบียนที่ยกเลิกแล้ว ไม่แสดงชื่อผู้เสนอหรือข้อมูลอาหาร</p>
-<div class="row"><label>วันที่ประชุม<select id="lineDate"><option value="">เลือกวันประชุม</option></select></label><button class="secondary" id="linePreview" type="button">↻ ดูตัวอย่างข้อความล่าสุด</button></div>
+<div class="row"><label>วันที่ประชุม<select id="lineDate"><option value="">เลือกวันประชุม</option></select></label><label>เวลานำเสนอทั้งหมด (นาที)<input id="lineCapacity" type="number" min="1" max="1440" step="1" placeholder="เช่น 240"></label><button class="secondary" id="lineCapacitySave" type="button">บันทึกกรอบเวลา</button><button class="secondary" id="linePreview" type="button">↻ ดูตัวอย่างข้อความล่าสุด</button></div><p class="muted">กรอกเฉพาะเวลาที่จัดสรรให้วาระนำเสนอ (ไม่รวมพักหรือกิจกรรมอื่น) และกดบันทึกกรอบเวลาก่อนส่ง LINE</p>
 <label>ตัวอย่างข้อความที่จะส่ง<textarea id="lineMessage" rows="13" readonly style="width:100%;border:1px solid #c8d3e1;border-radius:8px;padding:12px;font:inherit;resize:vertical" placeholder="เลือกวันประชุมและกดดูตัวอย่าง"></textarea></label>
 <p id="lineStatus" class="muted" role="status"></p>
 <div class="row"><button id="lineSend" type="button" disabled>ส่งข้อความเข้า LINE กลุ่ม</button></div>
