@@ -120,7 +120,7 @@ async function menuSettings(env,token){
 }
 async function saveImageMapping(env,input){
  const date=String(input.date||""),kind=String(input.kind||""),menu=String(input.menu||""),url=String(input.url??"");
- if(!/^\d{4}-\d{2}-\d{2}$/.test(date)||!imageKinds.has(kind)||menu.length>160||!validImageUrl(url))return {status:400,error:"วันที่/เมนู/URL รูปภาพไม่ถูกต้อง"};
+ if(!(date==="-"||/^\d{4}-\d{2}-\d{2}$/.test(date))||!imageKinds.has(kind)||menu.length>160||!validImageUrl(url))return {status:400,error:"วันที่/เมนู/URL รูปภาพไม่ถูกต้อง"};
  const token=await googleToken(env,true),settings=await menuSettings(env,token);
  if(!settings.days[date]?.[kind]?.includes(menu))return {status:400,error:"ไม่พบชื่อเมนูสำหรับวันที่เลือก"};
  const key=(kind==="food"?"LunchImage_":"DrinkImage_")+date;
