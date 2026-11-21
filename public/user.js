@@ -54,7 +54,7 @@ function setup(data){
  $("dates").replaceChildren(...data.dates.map(day=>{const l=el("label","date-choice"),i=el("input");i.type="checkbox";i.value=day;i.onchange=refreshDays;l.append(i,document.createTextNode(day));return l}));
  $("userForm").classList.remove("hidden");$("loadStatus").classList.add("hidden");updateAttendance();
 }
-async function init(){try{const data=await call("config",{});setup(data)}catch(e){const notice=$("loadStatus");notice.textContent="โหลดแบบฟอร์มไม่สำเร็จ: "+e.message;notice.className="notice error";$("userForm").classList.remove("hidden")}}
+async function init(){try{const data=await call("config",{});setup(data)}catch(e){const notice=$("loadStatus");notice.textContent="โหลดแบบฟอร์มไม่สำเร็จ: "+e.message;notice.className="notice error"}}
 init();
 document.querySelectorAll('input[name="attendance"]').forEach(x=>x.onchange=updateAttendance);
 $("addAgenda").onclick=()=>{if(!selectedDates().length){status("submitStatus","กรุณาเลือกวันที่เข้าร่วมก่อนเพิ่มวาระ",true);return}agendaItem()};
