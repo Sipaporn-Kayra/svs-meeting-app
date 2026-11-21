@@ -62,6 +62,7 @@ async function api(path,opts){const r=await fetch('/api/admin/'+path,{credential
 function rows(target,items,mapper){const el=$(target);el.replaceChildren();if(!items.length){const tr=document.createElement('tr'),td=document.createElement('td');td.textContent='ไม่มีข้อมูล';tr.append(td);el.append(tr);return}
 for(const item of items){const tr=document.createElement('tr');for(const v of mapper(item)){const td=document.createElement('td');td.textContent=String(v);tr.append(td)}el.append(tr)}}
 function show(logged){$('loginArea').classList.toggle('hidden',logged);$('dashboard').classList.toggle('hidden',!logged)}
+window.svsReloadAdmin=()=>load();
 async function load(){const btn=$('refresh');btn.disabled=true;message('กำลังดึงข้อมูลล่าสุด…');try{const date=$('date').value;const j=await api('registrations'+(date?'?date='+encodeURIComponent(date):''));snapshot=j;
 const old=$('date').value,options=['',...(j.dates||[])];$('date').replaceChildren();options.forEach(d=>{const o=document.createElement('option');o.value=d;o.textContent=d||'รวมทุกวัน';$('date').append(o)});if(old&&!options.includes(old)){const o=document.createElement('option');o.value=old;o.textContent=old;$('date').append(o)}$('date').value=old;
 $('participants').textContent=j.participants;$('meals').textContent=j.food.reduce((n,a)=>n+a.count,0);$('drinks').textContent=j.drinks.reduce((n,a)=>n+a.count,0);$('agendas').textContent=j.agendas.length;$('fetched').textContent='ดึงข้อมูลเมื่อ '+new Date(j.fetched_at).toLocaleString('th-TH');
