@@ -1,12 +1,10 @@
 // User registration API for SVS Cloudflare Pages test branch.
-// Requires USER_FORM_CODE, GOOGLE_SERVICE_ACCOUNT_JSON, GOOGLE_SHEET_ID.
-// Never sends credentials or the form access code back to the browser.
+// Public registration endpoint; requires server-side GOOGLE_SERVICE_ACCOUNT_JSON, GOOGLE_SHEET_ID.
+// Admin authentication remains separate. Limit abuse with Cloudflare rate limiting before broad sharing.
 const utf8=new TextEncoder();
 const noStore={"Cache-Control":"no-store","Content-Type":"application/json; charset=utf-8","X-Content-Type-Options":"nosniff"};
 function output(data,status=200){return new Response(JSON.stringify(data),{status,headers:noStore})}
 function base64url(bytes){let s="";for(const b of bytes)s+=String.fromCharCode(b);return btoa(s).replace(/=/g,"").replace(/\+/g,"-").replace(/\//g,"_")}
-function safeEqual(a,b){const x=utf8.encode(a||""),y=utf8.encode(b||"");if(x.length!==y.length)return false;let n=0;for(let i=0;i<x.length;i++)n|=x[i]^y[i];return n===0}
-function authorized(code,env){return typeof code==="string"&&code.length>=6&&!!env.USER_FORM_CODE&&safeEqual(code,env.USER_FORM_CODE)}
 async function accessToken(env){
  const sa=JSON.parse(env.GOOGLE_SERVICE_ACCOUNT_JSON||"{}");
  if(!sa.client_email||!sa.private_key)throw Error("Service account is not configured");
@@ -75,11 +73,15 @@ function validate(payload,conf){
 export async function onRequest({request,env,params}){
  const route=Array.isArray(params.path)?params.path.join("/"):params.path||"";
  if(request.method!=="POST"||!["config","submit"].includes(route))return output({error:"Not found"},404);
+ const origin=request.headers.get("Origin");
+ if(origin!==new URL(request.url).origin)return output({error:"Invalid request origin"},403);
+ const fetchSite=request.headers.get("Sec-Fetch-Site");
+ if(fetchSite&&fetchSite!=="same-origin"&&fetchSite!=="none")return output({error:"Cross-site request denied"},403);
+ if(!(request.headers.get("Content-Type")||"").toLowerCase().startsWith("application/json"))return output({error:"Invalid content type"},415);
  if(Number(request.headers.get("Content-Length")||0)>60000)return output({error:"Payload too large"},413);
  try{
   const raw=await request.text();if(raw.length>60000)return output({error:"Payload too large"},413);
   const body=JSON.parse(raw||"{}");
-  if(!authorized(body.code,env))return output({error:"รหัสเข้าฟอร์มไม่ถูกต้อง"},401);
   if(!env.GOOGLE_SHEET_ID)throw Error("Sheet ID missing");
   const token=await accessToken(env);
   const config=await readConfig(env,token);
