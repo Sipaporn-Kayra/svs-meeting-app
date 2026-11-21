@@ -49,7 +49,7 @@ async function googleToken(env,write=false){
 async function readSheets(env){
  if(!env.GOOGLE_SHEET_ID)throw new Error("Sheet id not configured");
  const token=await googleToken(env);
- const ranges=["A:J","'Settings'!A:B"];
+ const ranges=["A:O","'Settings'!A:B"];
  // A:J reads the first worksheet, matching Streamlit db.sheet1 without assuming its title.
  const url="https://sheets.googleapis.com/v4/spreadsheets/"+encodeURIComponent(env.GOOGLE_SHEET_ID)+"/values:batchGet?"+ranges.map(r=>"ranges="+encodeURIComponent(r)).join("&");
  const response=await fetch(url,{headers:{Authorization:"Bearer "+token}});
@@ -74,7 +74,7 @@ function parseData(data,date){
  const globalDates=(settings.find(r=>r.Key==="Global_Dates")?.Value||"").split(",").map(s=>s.trim()).filter(Boolean);
  const historicalDates=users.map(r=>r.Date).filter(d=>/^\d{4}-\d{2}-\d{2}$/.test(d));
  const allDates=[...new Set([...globalDates,...historicalDates])].sort();
- const filtered=users.filter(r=>r.Attendance==="เข้าร่วม"&&(!date||r.Date===date));
+ const filtered=users.filter(r=>r.RecordStatus!=="ARCHIVED"&&r.Attendance==="เข้าร่วม"&&(!date||r.Date===date));
  const agendas=[],people=new Set(),food=new Map(),drinks=new Map();
  const occurrences=new Map();
  for(const r of filtered){
@@ -192,6 +192,62 @@ async function uploadMenuImage(request,env){
  await env.MENU_IMAGES.put(id,bytes,{httpMetadata:{contentType:file.type,cacheControl:"public,max-age=31536000,immutable"}});
  return {ok:true,url:"/api/menu-image/"+id};
 }
+
+const archiveFlag=row=>String(row[14]||"").trim()==="ARCHIVED";
+function recordGroupKey(row){
+ return row[11]?"id:"+row[11]+"|"+row[3]:"legacy:"+JSON.stringify([row[0],row[1],row[3],row[2]]);
+}
+function registrationGroups(values){
+ const groups=new Map();
+ for(const [i,row] of (values||[]).slice(1).entries()){
+  if(!row[1])continue;
+  const key=recordGroupKey(row);
+  let g=groups.get(key);
+  if(!g){g={id:key,name:row[1],date:row[3],attendance:row[2],timestamp:row[0],rows:[],statuses:new Set(),topics:[],food:"",drink:""};groups.set(key,g)}
+  g.rows.push(i+2);g.statuses.add(archiveFlag(row)?"ARCHIVED":"ACTIVE");
+  if(row[4]&&row[4]!=="-")g.food=row[4];
+  if(row[5]&&row[5]!=="-")g.drink=row[5];
+  if(row[7]&&row[7]!=="-")g.topics.push(row[7]);
+ }
+ const all=[...groups.values()].map(g=>({id:g.id,name:g.name,date:g.date,attendance:g.attendance,timestamp:g.timestamp,food:g.food,drink:g.drink,topics:g.topics,rowCount:g.rows.length,status:g.statuses.size>1?"MIXED":[...g.statuses][0],duplicate:false}));
+ const active=new Map();
+ for(const g of all.filter(g=>g.status==="ACTIVE")){
+  const key=JSON.stringify([g.name.trim(),g.date]);
+  active.set(key,(active.get(key)||0)+1);
+ }
+ for(const g of all)g.duplicate=g.status==="ACTIVE"&&(active.get(JSON.stringify([g.name.trim(),g.date]))||0)>1;
+ return all.sort((a,b)=>String(b.timestamp).localeCompare(String(a.timestamp)));
+}
+async function registrationSheet(env,token){
+ const result=await sheetCall(env,token,"GET","/values/A1%3AO");
+ const values=result.values||[],header=values[0]||[];
+ if(header[14]&&header[14]!=="RecordStatus")throw Error("Column O already in use");
+ return {values,header};
+}
+async function changeRegistrationStatus(env,body){
+ const id=typeof body.id==="string"?body.id:"",date=String(body.date||"");
+ const target=body.action==="archive"?"ARCHIVED":body.action==="restore"?"ACTIVE":"";
+ if(!id||id.length>500||!target||!/^\d{4}-\d{2}-\d{2}$/.test(date))return {http:400,error:"Invalid registration selection"};
+ const token=await googleToken(env,true),sheet=await registrationSheet(env,token);
+ const match=[];
+ for(const [i,row] of sheet.values.slice(1).entries()){
+  if(recordGroupKey(row)===id&&row[3]===date)match.push({row,rowNumber:i+2});
+ }
+ if(!match.length)return {http:409,error:"ไม่พบรายการนี้ กรุณา Refresh"};
+ const statuses=new Set(match.map(r=>archiveFlag(r.row)?"ARCHIVED":"ACTIVE"));
+ if(statuses.size!==1)return {http:409,error:"รายการมีสถานะไม่สอดคล้อง กรุณาติดต่อ Admin"};
+ if([...statuses][0]===target)return {http:409,error:"รายการถูกเปลี่ยนสถานะแล้ว กรุณา Refresh"};
+ if(target==="ACTIVE"){
+  // Never restore a duplicate into the live summaries: require archiving
+  // the other group first, or manual reconciliation by Admin.
+  const peers=registrationGroups(sheet.values).filter(g=>g.status==="ACTIVE"&&g.id!==id&&g.date===date&&g.name===match[0].row[1]);
+  if(peers.length)return {http:409,error:"ชื่อและวันนี้มีรายการที่ใช้งานอยู่แล้ว กรุณาจัดการรายการซ้ำก่อนกู้คืน"};
+ }
+ if(!sheet.header[14])await sheetCall(env,token,"PUT","/values/O1?valueInputOption=RAW",{range:"O1",majorDimension:"ROWS",values:[["RecordStatus"]]});
+ const updates=match.map(r=>({range:"O"+r.rowNumber,majorDimension:"ROWS",values:[[target==="ARCHIVED"?"ARCHIVED":""]]}));
+ await sheetCall(env,token,"POST","/values:batchUpdate",{valueInputOption:"RAW",data:updates});
+ return {ok:true,status:target,rows:match.length};
+}
 export async function onRequest({request,env,params}){
  const route=(params.path||[]).join("/");
  if(request.method==="POST"&&request.headers.get("Origin")!==new URL(request.url).origin)return json({error:"Invalid request origin"},403);
@@ -233,6 +289,19 @@ export async function onRequest({request,env,params}){
    if(route==="menu-upload"&&request.method==="POST"){
      const result=await uploadMenuImage(request,env);
      return json(result,result.status||200);
+   }
+   if(route==="registration-groups"&&request.method==="GET"){
+     const token=await googleToken(env);
+     const data=await registrationSheet(env,token);
+     const groups=registrationGroups(data.values);
+     const date=new URL(request.url).searchParams.get("date")||"";
+     if(date&&!/^\d{4}-\d{2}-\d{2}$/.test(date))return json({error:"Invalid date"},400);
+     return json({groups:date?groups.filter(g=>g.date===date):groups,duplicateGroups:groups.filter(g=>g.duplicate).length});
+   }
+   if(route==="registration-status"&&request.method==="POST"){
+     const body=await request.json().catch(()=>({}));
+     const result=await changeRegistrationStatus(env,body);
+     return json(result,result.http||200);
    }
    if(route==="registrations"&&request.method==="GET"){
      const date=new URL(request.url).searchParams.get("date")||"";
